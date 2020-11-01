@@ -1,11 +1,21 @@
 use geojson::{FeatureCollection, GeoJson, Value};
+use reqwest::blocking::Client;
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use std::fs;
 
-pub struct Overpass {
-    pub overpass_url: String,
+const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
+
+pub struct Overpass<'a> {
+    pub url: &'a str,
 }
 
-impl Overpass {
+impl Default for Overpass<'_> {
+    fn default() -> Self {
+        Overpass { url: OVERPASS_URL }
+    }
+}
+
+impl Overpass<'_> {
     pub fn build_query() -> String {
         "".into()
     }
@@ -24,9 +34,9 @@ impl Overpass {
     fn get_polygon(path: &str) -> Result<String, Box<dyn std::error::Error>> {
         let geom = Overpass::get_geometry(path)?;
 
-        let value = geom.features[0]
-            .clone()
+        let ref value = geom.features[0]
             .geometry
+            .as_ref()
             .expect("Geometry not found")
             .value;
 
@@ -47,11 +57,39 @@ impl Overpass {
 
         Ok(items)
     }
+
+    fn get_data(&self) {
+        let mut headers = HeaderMap::new();
+        headers.insert(USER_AGENT, HeaderValue::from_static("HotOSM"));
+
+        let client = Client::new();
+        let body = r#"(
+			way(poly:"10.99019103370231 -74.80801105499268 10.9946144688616 -74.80352640151978 10.996931479848776 -74.80504989624023 10.9973948798614 -74.81062889099121 10.993982553614636 -74.81320381164551")[building];
+			);
+			out meta;"#;
+        let mut resp = client
+            .post(self.url)
+            .headers(headers)
+            .form(&[("data", body)])
+            .send()
+            .expect("Error executing overpass request");
+
+        if resp.status().is_success() {
+            let mut buffer = fs::File::create("foo.txt").expect("Could not open file");
+            resp.copy_to(&mut buffer).expect("Could not copy to file");
+        }
+        println!("{:?}", resp);
+    }
 }
 
 #[cfg(test)]
 pub mod overpass_tests {
     use super::*;
+
+    #[test]
+    fn test_overpass_request() {
+        Overpass::default().get_data();
+    }
 
     #[test]
     fn test_polygon() {
