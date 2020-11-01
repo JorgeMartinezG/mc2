@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
+use std::str::FromStr;
 
 use xml::attribute::OwnedAttribute;
 use xml::reader::{EventReader, XmlEvent};
@@ -30,46 +31,48 @@ struct Xml {
     nodes: HashMap<i32, Node>,
 }
 
-fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
-    let attr = attributes.iter().find(|a| a.name.local_name == name);
-    match attr {
-        Some(a) => a.value.clone(),
-        None => "".to_string(),
-    }
+fn find_attribute<T>(name: &str, attributes: &Vec<OwnedAttribute>) -> Result<T, T::Err>
+where
+    T: FromStr,
+{
+    let attr = attributes
+        .iter()
+        .find(|a| a.name.local_name == name)
+        .unwrap();
+    let val = attr.value.clone().parse::<T>();
+
+    val
 }
 
-fn create_node(attributes: &Vec<OwnedAttribute>) -> Node {
-    let lat = find_attribute("lat", &attributes);
-    let lng = find_attribute("lon", &attributes);
-    let id = find_attribute("id", &attributes);
+fn create_node(attributes: &Vec<OwnedAttribute>) {
+    let lat = find_attribute::<f64>("lat", &attributes).expect("Error parsing");
+    let lng = find_attribute::<f64>("lon", &attributes).expect("Error parsing");
+    let id = find_attribute::<i64>("id", &attributes).expect("Error parsing");
 
-    println!("{:?}, {}, {}", lat, lng, id);
-
-    Node {
-        id: 1,
-        lat: 1.0,
-        lon: 2.0,
-        tags: Vec::new(),
-    }
+    println!("{:?}, {:?}, {:?}", lat, lng, id);
 }
 
-fn parse_element(name: &str, attributes: Vec<OwnedAttribute>) -> Element {
-    let elm = match name {
-        "nd" => Element::Node(create_node(&attributes)),
-        _ => Element::Ignored,
-    };
-
-    elm
+fn create_element(name: &str, attributes: Vec<OwnedAttribute>) {
+    match name {
+        "node" => create_node(&attributes),
+        _ => println!("Element ignored"),
+    }
 }
 
 fn match_event(event: XmlEvent) {
-    let evt = match event {
-        XmlEvent::EndDocument => Element::EndOfDocument,
+    // let evt = match event {
+    //     XmlEvent::EndDocument => Element::EndOfDocument,
+    //     XmlEvent::StartElement {
+    //         name, attributes, ..
+    //     } => Element::Node(Node{}),
+    //     _ => Element::Ignored,
+    // };
+    match event {
         XmlEvent::StartElement {
             name, attributes, ..
-        } => parse_element(&name.local_name, attributes),
-        _ => Element::Ignored,
-    };
+        } => create_element(name.local_name.as_str(), attributes),
+        _ => println!("ignore"),
+    }
 }
 
 pub fn parse(path: &str) {
