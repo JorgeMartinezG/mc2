@@ -43,6 +43,47 @@ fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
         .clone()
 }
 
+fn create_node(attributes: &Vec<OwnedAttribute>) -> Node {
+    let lat = find_attribute("lat", &attributes)
+        .parse::<f64>()
+        .expect("Error parsing");
+    let lon = find_attribute("lon", &attributes)
+        .parse::<f64>()
+        .expect("Error parsing");
+    let id = find_attribute("id", &attributes)
+        .parse::<i64>()
+        .expect("Error parsing");
+
+    Node {
+        id: id,
+        lat: lat,
+        lon: lon,
+        tags: Vec::new(),
+    }
+}
+
+fn create_way(attributes: &Vec<OwnedAttribute>) -> Way {
+    let id = find_attribute("id", &attributes)
+        .parse::<i64>()
+        .expect("Error parsing");
+
+    Way {
+        id: id,
+        nodes: Vec::new(),
+        tags: Vec::new(),
+    }
+}
+
+fn create_tag(attributes: &Vec<OwnedAttribute>) -> Tag {
+    let key = find_attribute("k", &attributes);
+    let value = find_attribute("v", &attributes);
+
+    Tag {
+        key: key,
+        value: value,
+    }
+}
+
 pub fn parse(path: &str) {
     let file = File::open(path).expect("Could not open xml file");
     let file = BufReader::new(file);
@@ -60,33 +101,12 @@ pub fn parse(path: &str) {
                 name, attributes, ..
             } => match name.local_name.as_str() {
                 "node" => {
-                    let lat = find_attribute("lat", &attributes)
-                        .parse::<f64>()
-                        .expect("Error parsing");
-                    let lon = find_attribute("lon", &attributes)
-                        .parse::<f64>()
-                        .expect("Error parsing");
-                    let id = find_attribute("id", &attributes)
-                        .parse::<i64>()
-                        .expect("Error parsing");
-
-                    let node = Node {
-                        id: id,
-                        lat: lat,
-                        lon: lon,
-                        tags: Vec::new(),
-                    };
+                    let node = create_node(&attributes);
                     current_element = Element::Node(node);
                 }
                 // If there are tags...include them in the current element.
                 "tag" => {
-                    let key = find_attribute("k", &attributes);
-                    let value = find_attribute("v", &attributes);
-
-                    let tag = Tag {
-                        key: key,
-                        value: value,
-                    };
+                    let tag = create_tag(&attributes);
 
                     match current_element {
                         Element::Node(ref mut n) => n.tags.push(tag),
@@ -95,14 +115,7 @@ pub fn parse(path: &str) {
                     }
                 }
                 "way" => {
-                    let id = find_attribute("id", &attributes)
-                        .parse::<i64>()
-                        .expect("Error parsing");
-                    let way = Way {
-                        id: id,
-                        nodes: Vec::new(),
-                        tags: Vec::new(),
-                    };
+                    let way = create_way(&attributes);
                     current_element = Element::Way(way);
                 }
                 "nd" => {
