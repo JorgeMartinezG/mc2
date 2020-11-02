@@ -13,6 +13,16 @@ enum Element {
     Way(Way),
 }
 
+impl Element {
+    fn add_tag(&mut self, tag: Tag) {
+        match self {
+            Element::Node(ref mut n) => n.tags.push(tag),
+            Element::Way(ref mut w) => w.tags.push(tag),
+            _ => (),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Node {
     id: i64,
@@ -107,12 +117,7 @@ pub fn parse(path: &str) {
                 // If there are tags...include them in the current element.
                 "tag" => {
                     let tag = create_tag(&attributes);
-
-                    match current_element {
-                        Element::Node(ref mut n) => n.tags.push(tag),
-                        Element::Way(ref mut w) => w.tags.push(tag),
-                        _ => continue,
-                    }
+                    current_element.add_tag(tag);
                 }
                 "way" => {
                     let way = create_way(&attributes);
