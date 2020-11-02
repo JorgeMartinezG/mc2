@@ -48,30 +48,6 @@ where
     val
 }
 
-fn create_node(attributes: &Vec<OwnedAttribute>) {
-    let lat = find_attribute::<f64>("lat", &attributes).expect("Error parsing");
-    let lng = find_attribute::<f64>("lon", &attributes).expect("Error parsing");
-    let id = find_attribute::<i64>("id", &attributes).expect("Error parsing");
-
-    println!("{:?}, {:?}, {:?}", lat, lng, id);
-}
-
-fn create_element(name: &str, attributes: Vec<OwnedAttribute>) {
-    match name {
-        "node" => create_node(&attributes),
-        _ => println!("Element ignored"),
-    }
-}
-
-fn match_event(event: XmlEvent) {
-    match event {
-        XmlEvent::StartElement {
-            name, attributes, ..
-        } => create_element(name.local_name.as_str(), attributes),
-        _ => println!("ignore"),
-    }
-}
-
 pub fn parse(path: &str) {
     let file = File::open(path).expect("Could not open xml file");
     let file = BufReader::new(file);
@@ -174,7 +150,6 @@ pub fn parse(path: &str) {
         }
     }
     println!("{:?}", nodes);
-    println!("{:?}", ways);
 }
 
 #[cfg(test)]
