@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use std::fs::File;
 use std::io::BufReader;
-use std::str::FromStr;
 
 use xml::attribute::OwnedAttribute;
 use xml::reader::{EventReader, XmlEvent};
@@ -35,17 +34,13 @@ struct Tag {
     value: String,
 }
 
-fn find_attribute<T>(name: &str, attributes: &Vec<OwnedAttribute>) -> Result<T, T::Err>
-where
-    T: FromStr,
-{
-    let attr = attributes
+fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
+    attributes
         .iter()
         .find(|a| a.name.local_name == name)
-        .unwrap();
-    let val = attr.value.clone().parse::<T>();
-
-    val
+        .unwrap()
+        .value
+        .clone()
 }
 
 pub fn parse(path: &str) {
@@ -65,9 +60,15 @@ pub fn parse(path: &str) {
                 name, attributes, ..
             } => match name.local_name.as_str() {
                 "node" => {
-                    let lat = find_attribute::<f64>("lat", &attributes).expect("Error parsing");
-                    let lon = find_attribute::<f64>("lon", &attributes).expect("Error parsing");
-                    let id = find_attribute::<i64>("id", &attributes).expect("Error parsing");
+                    let lat = find_attribute("lat", &attributes)
+                        .parse::<f64>()
+                        .expect("Error parsing");
+                    let lon = find_attribute("lon", &attributes)
+                        .parse::<f64>()
+                        .expect("Error parsing");
+                    let id = find_attribute("id", &attributes)
+                        .parse::<i64>()
+                        .expect("Error parsing");
 
                     let node = Node {
                         id: id,
@@ -79,19 +80,8 @@ pub fn parse(path: &str) {
                 }
                 // If there are tags...include them in the current element.
                 "tag" => {
-                    let key = attributes
-                        .iter()
-                        .find(|i| i.name.local_name == "k")
-                        .unwrap()
-                        .value
-                        .clone();
-
-                    let value = attributes
-                        .iter()
-                        .find(|i| i.name.local_name == "v")
-                        .unwrap()
-                        .value
-                        .clone();
+                    let key = find_attribute("k", &attributes);
+                    let value = find_attribute("v", &attributes);
 
                     let tag = Tag {
                         key: key,
@@ -105,7 +95,9 @@ pub fn parse(path: &str) {
                     }
                 }
                 "way" => {
-                    let id = find_attribute::<i64>("id", &attributes).expect("Error parsing");
+                    let id = find_attribute("id", &attributes)
+                        .parse::<i64>()
+                        .expect("Error parsing");
                     let way = Way {
                         id: id,
                         nodes: Vec::new(),
@@ -114,7 +106,9 @@ pub fn parse(path: &str) {
                     current_element = Element::Way(way);
                 }
                 "nd" => {
-                    let id = find_attribute::<i64>("ref", &attributes).expect("Error parsing");
+                    let id = find_attribute("ref", &attributes)
+                        .parse::<i64>()
+                        .expect("Error parsing");
                     let node = ref_nodes.get(&id).unwrap().clone();
                     match current_element {
                         Element::Way(ref mut w) => w.nodes.push(node),
