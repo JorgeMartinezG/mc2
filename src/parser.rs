@@ -11,8 +11,7 @@ use xml::reader::{EventReader, XmlEvent};
 enum Element {
     Initialized,
     Node(Node),
-    EndOfDocument,
-    Ignored,
+    Way(Way),
 }
 
 #[derive(Debug, Clone)]
@@ -20,6 +19,13 @@ struct Node {
     id: i64,
     lat: f64,
     lon: f64,
+    tags: Vec<Tag>,
+}
+
+#[derive(Debug, Clone)]
+struct Way {
+    id: i64,
+    nodes: Vec<Node>,
     tags: Vec<Tag>,
 }
 
@@ -73,6 +79,7 @@ pub fn parse(path: &str) {
     let mut parser = EventReader::new(file);
     let mut ref_nodes: HashMap<i64, Node> = HashMap::new();
     let mut nodes: HashMap<i64, Node> = HashMap::new();
+    let mut ways: HashMap<i64, Way> = HashMap::new();
 
     let mut current_element = Element::Initialized;
     loop {
@@ -117,6 +124,24 @@ pub fn parse(path: &str) {
 
                     match current_element {
                         Element::Node(ref mut n) => n.tags.push(tag),
+                        Element::Way(ref mut w) => w.tags.push(tag),
+                        _ => continue,
+                    }
+                }
+                "way" => {
+                    let id = find_attribute::<i64>("id", &attributes).expect("Error parsing");
+                    let way = Way {
+                        id: id,
+                        nodes: Vec::new(),
+                        tags: Vec::new(),
+                    };
+                    current_element = Element::Way(way);
+                }
+                "nd" => {
+                    let id = find_attribute::<i64>("ref", &attributes).expect("Error parsing");
+                    let node = ref_nodes.get(&id).unwrap().clone();
+                    match current_element {
+                        Element::Way(ref mut w) => w.nodes.push(node),
                         _ => continue,
                     }
                 }
@@ -134,6 +159,12 @@ pub fn parse(path: &str) {
                         }
                         _ => continue,
                     },
+                    "way" => match current_element {
+                        Element::Way(ref w) => {
+                            ways.insert(w.id, w.clone());
+                        }
+                        _ => continue,
+                    },
                     _ => continue,
                 }
                 current_element = Element::Initialized;
@@ -143,6 +174,7 @@ pub fn parse(path: &str) {
         }
     }
     println!("{:?}", nodes);
+    println!("{:?}", ways);
 }
 
 #[cfg(test)]
