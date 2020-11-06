@@ -1,0 +1,52 @@
+{
+	"name": "Test Campaign",
+	"geometry_types": ["point", "polygon"],
+	"tags": {
+		"primary": [{
+			"key": "buildings",
+			"values": []
+		}],
+		"secondary": [{
+			"key": "amenity",
+			"values": ["hospital", "pharmacy"]
+		}]
+	},
+	"geom": {
+		"type": "FeatureCollection",
+		"features": [{
+			"type": "Feature",
+			"properties": {},
+			"geometry": {
+				"type": "Polygon",
+				"coordinates": [
+					[
+						[
+							-74.80801105499268,
+							10.99019103370231
+						],
+						[
+							-74.80352640151978,
+							10.994614468861599
+						],
+						[
+							-74.80504989624023,
+							10.996931479848776
+						],
+						[
+							-74.81062889099121,
+							10.9973948798614
+						],
+						[
+							-74.81320381164551,
+							10.993982553614636
+						],
+						[
+							-74.80801105499268,
+							10.99019103370231
+						]
+					]
+				]
+			}
+		}]
+	}
+}
