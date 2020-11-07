@@ -2,29 +2,47 @@ use geojson::{GeoJson, Value};
 use serde::Deserialize;
 use serde_json;
 
-#[derive(Deserialize, Debug)]
-struct Campaign {
-    name: String,
-    geometry_types: Vec<String>,
-    tags: Tags,
-    geom: GeoJson,
+const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
+
+#[derive(Debug)]
+struct Overpass {
+    nodes: Vec<Tag>,
+    ways: Vec<Tag>,
+    polygon_str: String,
 }
 
-#[derive(Deserialize, Debug)]
-struct Tags {
-    primary: Vec<Tag>,
-    secondary: Vec<Tag>,
-}
+impl Overpass {
+    fn create_filter(element: &str, tags: &Vec<Tag>, poly_str: &String) -> Vec<String> {
+        tags.iter()
+            .map(|ptag| {
+                if ptag.values.len() == 0 {
+                    return format!("{}(poly: {})[{}]", element, poly_str, ptag.key);
+                }
+                let values = ptag.values.join(" | ");
+                return format!("{}(poly: {})[{}~{}]", element, poly_str, ptag.key, values);
+            })
+            .collect::<Vec<String>>()
+    }
 
-#[derive(Deserialize, Debug)]
-struct Tag {
-    key: String,
-    values: Vec<String>,
-}
+    fn to_string(&self) {
+        let nodes = Overpass::create_filter("nodes", &self.nodes, &self.polygon_str);
+        let ways = Overpass::create_filter("ways", &self.ways, &self.polygon_str);
 
-impl Campaign {
-    fn build_overpass_polygon(&self) -> String {
-        let feature_collection = match &self.geom {
+        let query = format!(
+            r#"
+            ({});
+            ({}); >;
+            out meta;
+        "#,
+            nodes.join("\n"),
+            ways.join("\n")
+        );
+
+        println!("{}", query);
+    }
+
+    fn geom(geom: &GeoJson) -> String {
+        let feature_collection = match &geom {
             GeoJson::FeatureCollection(f) => f,
             _ => panic!("Geojson must be FeatureCollection"),
         };
@@ -52,36 +70,49 @@ impl Campaign {
             .join(" ")
     }
 
-    fn create_filter(&self, element: &str, poly_str: &String) -> Vec<String> {
-        self.tags
-            .primary
-            .iter()
-            .map(|ptag| {
-                if ptag.values.len() == 0 {
-                    return format!("{}(poly: {})[{}]", element, poly_str, ptag.key);
-                }
-                let values = ptag.values.join(" | ");
-                return format!("{}(poly: {})[{}~{}]", element, poly_str, ptag.key, values);
-            })
-            .collect::<Vec<String>>()
-    }
+    fn new(campaign: &Campaign) -> Overpass {
+        let polygon_str = Overpass::geom(&campaign.geom);
+        let ref primary_tags = campaign.tags.primary;
 
-    fn build_overpass_query(&self) {
-        let poly_str = self.build_overpass_polygon();
+        let mut nodes = Vec::new();
+        let mut ways = Vec::new();
 
-        let query_lines = self
+        campaign
             .geometry_types
             .iter()
             .map(|t| match t.as_str() {
-                "point" => self.create_filter("node", &poly_str),
-                "polygon" | "line" => self.create_filter("way", &poly_str),
+                "point" => nodes.push(primary_tags.to_vec()),
+                "polygon" | "line" => ways.push(primary_tags.to_vec()),
                 _ => panic!("Geometry type missing"),
             })
-            .flatten()
-            .collect::<Vec<String>>();
+            .for_each(drop);
 
-        println!("{:?}", query_lines);
+        Overpass {
+            nodes: nodes.into_iter().flatten().collect::<Vec<Tag>>(),
+            ways: ways.into_iter().flatten().collect::<Vec<Tag>>(),
+            polygon_str: polygon_str,
+        }
     }
+}
+
+#[derive(Deserialize, Debug)]
+struct Campaign {
+    name: String,
+    geometry_types: Vec<String>,
+    tags: Tags,
+    geom: GeoJson,
+}
+
+#[derive(Deserialize, Debug)]
+struct Tags {
+    primary: Vec<Tag>,
+    secondary: Vec<Tag>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct Tag {
+    key: String,
+    values: Vec<String>,
 }
 
 fn main() {
@@ -152,6 +183,7 @@ mod campaign_test {
         "#;
 
         let data: Campaign = serde_json::from_str(campaign_str).expect("failed reading file");
-        data.build_overpass_query();
+        let overpass = Overpass::new(&data);
+        overpass.to_string();
     }
 }
