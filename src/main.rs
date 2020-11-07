@@ -1,25 +1,28 @@
 use geojson::{GeoJson, Value};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json;
 
 const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
 
 #[derive(Debug)]
 struct Overpass {
-    nodes: Vec<Tag>,
-    ways: Vec<Tag>,
+    nodes: Vec<SearchTag>,
+    ways: Vec<SearchTag>,
     polygon_str: String,
 }
 
 impl Overpass {
-    fn create_filter(element: &str, tags: &Vec<Tag>, poly_str: &String) -> Vec<String> {
+    fn create_filter(element: &str, tags: &Vec<SearchTag>, poly_str: &String) -> Vec<String> {
         tags.iter()
             .map(|ptag| {
                 if ptag.values.len() == 0 {
-                    return format!("{}(poly: {})[{}]", element, poly_str, ptag.key);
+                    return format!("{}(poly: {})['{}']", element, poly_str, ptag.key);
                 }
                 let values = ptag.values.join(" | ");
-                return format!("{}(poly: {})[{}~{}]", element, poly_str, ptag.key, values);
+                return format!(
+                    "{}(poly: {})['{}'~'{}']",
+                    element, poly_str, ptag.key, values
+                );
             })
             .collect::<Vec<String>>()
     }
@@ -30,8 +33,12 @@ impl Overpass {
 
         let query = format!(
             r#"
-            ({});
-            ({}); >;
+            (
+              {}
+            );
+            (
+              {}
+            ); >;
             out meta;
         "#,
             nodes.join("\n"),
@@ -72,24 +79,23 @@ impl Overpass {
 
     fn new(campaign: &Campaign) -> Overpass {
         let polygon_str = Overpass::geom(&campaign.geom);
-        let ref primary_tags = campaign.tags.primary;
-
         let mut nodes = Vec::new();
         let mut ways = Vec::new();
 
+        let ref tags = campaign.tags;
         campaign
             .geometry_types
             .iter()
             .map(|t| match t.as_str() {
-                "point" => nodes.push(primary_tags.to_vec()),
-                "polygon" | "line" => ways.push(primary_tags.to_vec()),
+                "point" => nodes.push(tags.to_vec()),
+                "polygon" | "line" => ways.push(tags.to_vec()),
                 _ => panic!("Geometry type missing"),
             })
             .for_each(drop);
 
         Overpass {
-            nodes: nodes.into_iter().flatten().collect::<Vec<Tag>>(),
-            ways: ways.into_iter().flatten().collect::<Vec<Tag>>(),
+            nodes: nodes.into_iter().flatten().collect::<Vec<SearchTag>>(),
+            ways: ways.into_iter().flatten().collect::<Vec<SearchTag>>(),
             polygon_str: polygon_str,
         }
     }
@@ -99,20 +105,15 @@ impl Overpass {
 struct Campaign {
     name: String,
     geometry_types: Vec<String>,
-    tags: Tags,
+    tags: Vec<SearchTag>,
     geom: GeoJson,
 }
 
-#[derive(Deserialize, Debug)]
-struct Tags {
-    primary: Vec<Tag>,
-    secondary: Vec<Tag>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct Tag {
+#[derive(Deserialize, Debug, Clone, Serialize)]
+struct SearchTag {
     key: String,
     values: Vec<String>,
+    secondary: Option<Vec<SearchTag>>,
 }
 
 fn main() {
@@ -128,19 +129,21 @@ mod campaign_test {
             {
                 "name": "Test Campaign",
                 "geometry_types": ["point", "polygon"],
-                "tags": {
-                    "primary": [{
+                "tags": [
+                    {
                         "key": "buildings",
-                        "values": []
-                    }, {
-                        "key": "highways",
-                        "values": ["roads", "lala"]
-                    }],
-                    "secondary": [{
-                        "key": "amenity",
-                        "values": ["hospital", "pharmacy"]
-                    }]
-                },
+                        "values": [],
+                        "secondary": [{
+                            "key": "amenity",
+                            "values": ["hospital", "pharmacy"]
+                        }]
+                    },
+                    {
+                        "key": "highway",
+                        "values": ["roads", "train_stations"],
+                        "secondary": null
+                    }
+                ],
                 "geom": {
                     "type": "FeatureCollection",
                     "features": [{
@@ -185,5 +188,7 @@ mod campaign_test {
         let data: Campaign = serde_json::from_str(campaign_str).expect("failed reading file");
         let overpass = Overpass::new(&data);
         overpass.to_string();
+
+        println!("{}", serde_json::to_string(&data.tags).unwrap());
     }
 }
