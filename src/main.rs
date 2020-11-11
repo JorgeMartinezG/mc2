@@ -1,19 +1,23 @@
 use geojson::{GeoJson, Value};
 use serde::{Deserialize, Serialize};
 use serde_json;
+use uuid::Uuid;
+
+use std::fs::create_dir;
+use std::path::{Path, PathBuf};
 
 const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
 
 #[derive(Debug)]
-struct Overpass<'a> {
+struct Overpass {
     nodes: Vec<SearchTag>,
     ways: Vec<SearchTag>,
     polygons: Vec<SearchTag>,
     polygon_str: String,
-    url: &'a str,
+    url: String,
 }
 
-impl Overpass<'_> {
+impl Overpass {
     fn create_filter(element: &str, tags: &Vec<SearchTag>, poly_str: &String) -> Vec<String> {
         tags.iter()
             .map(|ptag| {
@@ -29,7 +33,7 @@ impl Overpass<'_> {
             .collect::<Vec<String>>()
     }
 
-    fn to_string(&self) {
+    fn to_string(&self) -> String {
         let nodes = Overpass::create_filter("node", &self.nodes, &self.polygon_str);
         let ways = Overpass::create_filter("way", &self.ways, &self.polygon_str);
         let polygons = Overpass::create_filter("relation", &self.polygons, &self.polygon_str);
@@ -51,7 +55,7 @@ impl Overpass<'_> {
             polygons.join("\n")
         );
 
-        println!("{}", query);
+        query
     }
 
     fn geom(geom: &GeoJson) -> String {
@@ -106,7 +110,7 @@ impl Overpass<'_> {
             ways: ways.into_iter().flatten().collect::<Vec<SearchTag>>(),
             polygons: polygons.into_iter().flatten().collect::<Vec<SearchTag>>(),
             polygon_str: polygon_str,
-            url: OVERPASS_URL,
+            url: OVERPASS_URL.to_string(),
         }
     }
 }
@@ -128,6 +132,37 @@ struct SearchTag {
 
 fn main() {
     println!("Hello world");
+}
+
+struct LocalStorage {
+    path: PathBuf,
+}
+
+struct CampaignRun {
+    uuid: String,
+    source: Overpass,
+    storage: LocalStorage,
+}
+
+impl CampaignRun {
+    fn create_path(&self) {
+        let path = Path::new(".").join(&self.uuid);
+        if path.exists() == false {
+            create_dir(path).unwrap();
+        }
+    }
+
+    fn new(source: Overpass, storage: LocalStorage) -> Self {
+        let uuid = Uuid::new_v4();
+        let mut buffer = Uuid::encode_buffer();
+        let uuid = uuid.to_simple().encode_lower(&mut buffer).to_owned();
+
+        CampaignRun {
+            source: source,
+            storage: storage,
+            uuid: uuid,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -201,8 +236,7 @@ mod campaign_test {
 
         let data: Campaign = serde_json::from_str(campaign_str).expect("failed reading file");
         let overpass = Overpass::new(&data);
-        overpass.to_string();
 
-        println!("{}", serde_json::to_string(&data.tags).unwrap());
+        //run = Cam
     }
 }
