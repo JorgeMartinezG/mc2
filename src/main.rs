@@ -5,22 +5,24 @@ use serde_json;
 const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
 
 #[derive(Debug)]
-struct Overpass {
+struct Overpass<'a> {
     nodes: Vec<SearchTag>,
     ways: Vec<SearchTag>,
+    polygons: Vec<SearchTag>,
     polygon_str: String,
+    url: &'a str,
 }
 
-impl Overpass {
+impl Overpass<'_> {
     fn create_filter(element: &str, tags: &Vec<SearchTag>, poly_str: &String) -> Vec<String> {
         tags.iter()
             .map(|ptag| {
                 if ptag.values.len() == 0 {
-                    return format!("{}(poly: {})['{}']", element, poly_str, ptag.key);
+                    return format!("{}(poly: '{}')['{}'];", element, poly_str, ptag.key);
                 }
                 let values = ptag.values.join(" | ");
                 return format!(
-                    "{}(poly: {})['{}'~'{}']",
+                    "{}(poly: '{}')['{}'~'{}'];",
                     element, poly_str, ptag.key, values
                 );
             })
@@ -28,21 +30,25 @@ impl Overpass {
     }
 
     fn to_string(&self) {
-        let nodes = Overpass::create_filter("nodes", &self.nodes, &self.polygon_str);
-        let ways = Overpass::create_filter("ways", &self.ways, &self.polygon_str);
-
+        let nodes = Overpass::create_filter("node", &self.nodes, &self.polygon_str);
+        let ways = Overpass::create_filter("way", &self.ways, &self.polygon_str);
+        let polygons = Overpass::create_filter("relation", &self.polygons, &self.polygon_str);
         let query = format!(
-            r#"
+            r#"(
             (
               {}
             );
             (
               {}
-            ); >;
-            out meta;
+            );>;
+            (
+              {}
+            );>>;>;
+            );out meta;
         "#,
             nodes.join("\n"),
-            ways.join("\n")
+            ways.join("\n"),
+            polygons.join("\n")
         );
 
         println!("{}", query);
@@ -81,14 +87,16 @@ impl Overpass {
         let polygon_str = Overpass::geom(&campaign.geom);
         let mut nodes = Vec::new();
         let mut ways = Vec::new();
+        let mut polygons = Vec::new();
 
         let ref tags = campaign.tags;
         campaign
             .geometry_types
             .iter()
             .map(|t| match t.as_str() {
-                "point" => nodes.push(tags.to_vec()),
-                "polygon" | "line" => ways.push(tags.to_vec()),
+                "points" => nodes.push(tags.to_vec()),
+                "lines" => ways.push(tags.to_vec()),
+                "polygons" => polygons.push(tags.to_vec()),
                 _ => panic!("Geometry type missing"),
             })
             .for_each(drop);
@@ -96,7 +104,9 @@ impl Overpass {
         Overpass {
             nodes: nodes.into_iter().flatten().collect::<Vec<SearchTag>>(),
             ways: ways.into_iter().flatten().collect::<Vec<SearchTag>>(),
+            polygons: polygons.into_iter().flatten().collect::<Vec<SearchTag>>(),
             polygon_str: polygon_str,
+            url: OVERPASS_URL,
         }
     }
 }
@@ -128,7 +138,7 @@ mod campaign_test {
         let campaign_str = r#"
             {
                 "name": "Test Campaign",
-                "geometry_types": ["point", "polygon"],
+                "geometry_types": ["points", "polygons"],
                 "tags": [
                     {
                         "key": "buildings",
@@ -142,6 +152,10 @@ mod campaign_test {
                         "key": "highway",
                         "values": ["roads", "train_stations"],
                         "secondary": null
+                    },
+                    {
+                        "key": "amenity",
+                        "values": ["pub"]
                     }
                 ],
                 "geom": {
