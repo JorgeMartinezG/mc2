@@ -11,6 +11,9 @@ use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 
 const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
 
+mod parser;
+use parser::parse;
+
 #[derive(Debug)]
 struct Overpass {
     nodes: Vec<SearchTag>,
@@ -117,7 +120,7 @@ impl Overpass {
         }
     }
 
-    fn fetch_data(&self, storage_path: &PathBuf) {
+    fn fetch_data(&self, storage_path: &String) {
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static("HotOSM"));
         let query = self.build_query();
@@ -128,10 +131,8 @@ impl Overpass {
             .send()
             .expect("Error executing overpass request");
 
-        let file_path = format!("{}/overpass.xml", storage_path.display());
-
         if resp.status().is_success() {
-            let mut buffer = File::create(file_path).expect("Could not open file");
+            let mut buffer = File::create(storage_path).expect("Could not open file");
             resp.copy_to(&mut buffer).expect("Could not copy to file");
         }
     }
@@ -165,6 +166,10 @@ impl LocalStorage {
         LocalStorage {
             path: Path::new(".").join(uuid),
         }
+    }
+
+    fn overpass(&self) -> String {
+        format!("{}/overpass.xml", self.path.display())
     }
 }
 
@@ -200,7 +205,10 @@ impl CampaignRun {
         if self.storage.path.exists() == false {
             create_dir(&self.storage.path).unwrap();
         }
-        self.source.fetch_data(&self.storage.path);
+
+        let xml_path = self.storage.overpass();
+        self.source.fetch_data(&xml_path);
+        parse(&xml_path);
     }
 }
 

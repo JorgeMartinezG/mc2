@@ -6,6 +6,9 @@ use std::io::BufReader;
 use xml::attribute::OwnedAttribute;
 use xml::reader::{EventReader, XmlEvent};
 
+use geojson::{Feature, FeatureCollection, Geometry, Value};
+use serde_json::{to_value, Map};
+
 #[derive(Debug)]
 enum Element {
     Initialized,
@@ -29,6 +32,12 @@ struct Node {
     lat: f64,
     lon: f64,
     tags: Vec<Tag>,
+}
+
+impl Node {
+    fn to_vec(&self) -> Vec<f64> {
+        vec![self.lon, self.lat]
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -100,8 +109,7 @@ pub fn parse(path: &str) {
 
     let mut parser = EventReader::new(file);
     let mut ref_nodes: HashMap<i64, Node> = HashMap::new();
-    let mut nodes: HashMap<i64, Node> = HashMap::new();
-    let mut ways: HashMap<i64, Way> = HashMap::new();
+    let mut elements: HashMap<i64, Element> = HashMap::new();
 
     let mut current_element = Element::Initialized;
     loop {
@@ -137,22 +145,20 @@ pub fn parse(path: &str) {
             },
             XmlEvent::EndElement { name } => {
                 match name.local_name.as_str() {
-                    "node" => match current_element {
+                    "node" | "way" => match current_element {
                         Element::Node(ref n) => {
                             if n.tags.len() == 0 {
                                 ref_nodes.insert(n.id, n.clone());
                             } else {
-                                nodes.insert(n.id, n.clone());
+                                elements.insert(n.id, Element::Node(n.clone()));
                             }
                         }
-                        _ => continue,
-                    },
-                    "way" => match current_element {
                         Element::Way(ref w) => {
-                            ways.insert(w.id, w.clone());
+                            elements.insert(w.id, Element::Way(w.clone()));
                         }
                         _ => continue,
                     },
+
                     _ => continue,
                 }
                 current_element = Element::Initialized;
@@ -161,7 +167,56 @@ pub fn parse(path: &str) {
             _ => continue,
         }
     }
-    println!("{:?}", nodes);
+
+    let features = elements
+        .iter()
+        .map(|(_id, element)| {
+            let geometry = match &element {
+                Element::Node(n) => Geometry::new(Value::Point(n.to_vec())),
+                Element::Way(w) => {
+                    let points = w
+                        .nodes
+                        .iter()
+                        .map(|n| n.to_vec())
+                        .collect::<Vec<Vec<f64>>>();
+
+                    Geometry::new(Value::Polygon(vec![points]))
+                }
+                _ => panic!("Element not recognized"),
+            };
+
+            let mut properties = Map::new();
+            match &element {
+                Element::Node(n) => n
+                    .tags
+                    .iter()
+                    .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
+                    .for_each(drop),
+                Element::Way(w) => w
+                    .tags
+                    .iter()
+                    .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
+                    .for_each(drop),
+                _ => panic!("Element not recognized"),
+            }
+
+            Feature {
+                bbox: None,
+                geometry: Some(geometry),
+                id: None,
+                properties: Some(properties),
+                foreign_members: None,
+            }
+        })
+        .collect::<Vec<Feature>>();
+
+    let feature_collection = FeatureCollection {
+        bbox: None,
+        features: features,
+        foreign_members: None,
+    };
+
+    println!("{}", feature_collection.to_string());
 }
 
 #[cfg(test)]
