@@ -169,7 +169,7 @@ pub fn parse(path: &str) {
     }
 
     let features = elements
-        .iter()
+        .into_iter()
         .map(|(_id, element)| {
             let geometry = match &element {
                 Element::Node(n) => Geometry::new(Value::Point(n.to_vec())),
@@ -180,7 +180,11 @@ pub fn parse(path: &str) {
                         .map(|n| n.to_vec())
                         .collect::<Vec<Vec<f64>>>();
 
-                    Geometry::new(Value::Polygon(vec![points]))
+                    if points[0].first() == points[0].last() {
+                        Geometry::new(Value::Polygon(vec![points]))
+                    } else {
+                        Geometry::new(Value::LineString(points))
+                    }
                 }
                 _ => panic!("Element not recognized"),
             };
@@ -216,7 +220,7 @@ pub fn parse(path: &str) {
         foreign_members: None,
     };
 
-    println!("{}", feature_collection.to_string());
+    //println!("{}", feature_collection.to_string());
 }
 
 #[cfg(test)]
