@@ -171,6 +171,10 @@ impl LocalStorage {
     fn overpass(&self) -> String {
         format!("{}/overpass.xml", self.path.display())
     }
+
+    fn json(&self) -> String {
+        format!("{}/features.json", self.path.display())
+    }
 }
 
 struct CampaignRun {
@@ -207,8 +211,10 @@ impl CampaignRun {
         }
 
         let xml_path = self.storage.overpass();
+        let json_path = self.storage.json();
+
         self.source.fetch_data(&xml_path);
-        parse(&xml_path);
+        parse(&xml_path, &json_path);
     }
 }
 
@@ -223,21 +229,8 @@ mod campaign_test {
                 "geometry_types": ["points", "polygons"],
                 "tags": [
                     {
-                        "key": "buildings",
-                        "values": [],
-                        "secondary": [{
-                            "key": "amenity",
-                            "values": ["hospital", "pharmacy"]
-                        }]
-                    },
-                    {
-                        "key": "highway",
-                        "values": ["roads", "train_stations"],
-                        "secondary": null
-                    },
-                    {
                         "key": "amenity",
-                        "values": ["pub"]
+                        "values": []
                     }
                 ],
                 "geom": {

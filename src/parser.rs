@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter, Write};
 
 use xml::attribute::OwnedAttribute;
 use xml::reader::{EventReader, XmlEvent};
 
-use geojson::{Feature, FeatureCollection, Geometry, Value};
+use geojson::{Feature, Geometry, Value};
 use serde_json::{to_value, Map};
 
 #[derive(Debug)]
@@ -103,15 +103,17 @@ fn create_tag(attributes: &Vec<OwnedAttribute>) -> Tag {
     }
 }
 
-pub fn parse(path: &str) {
-    let file = File::open(path).expect("Could not open xml file");
-    let file = BufReader::new(file);
+pub fn parse(read_path: &str, write_path: &str) {
+    let file = BufReader::new(File::open(read_path).expect("Could not open xml file"));
 
-    let mut parser = EventReader::new(file);
+    let writer_file = File::create(write_path).unwrap();
+    let mut writer = BufWriter::new(writer_file);
+
     let mut ref_nodes: HashMap<i64, Node> = HashMap::new();
     let mut elements: HashMap<i64, Element> = HashMap::new();
 
     let mut current_element = Element::Initialized;
+    let mut parser = EventReader::new(file);
     loop {
         let evt = parser.next().expect("Parsing error!");
         match evt {
@@ -168,67 +170,58 @@ pub fn parse(path: &str) {
         }
     }
 
-    let features = elements
-        .into_iter()
-        .map(|(_id, element)| {
-            let geometry = match &element {
-                Element::Node(n) => Geometry::new(Value::Point(n.to_vec())),
-                Element::Way(w) => {
-                    let points = w
-                        .nodes
-                        .iter()
-                        .map(|n| n.to_vec())
-                        .collect::<Vec<Vec<f64>>>();
+    writer
+        .write(r#"{"type": "FeatureCollection","features": ["#.as_bytes())
+        .unwrap();
+    let mut iterator = elements.into_iter().peekable();
+    while let Some((_id, element)) = iterator.next() {
+        let geometry = match &element {
+            Element::Node(n) => Geometry::new(Value::Point(n.to_vec())),
+            Element::Way(w) => {
+                let points = w
+                    .nodes
+                    .iter()
+                    .map(|n| n.to_vec())
+                    .collect::<Vec<Vec<f64>>>();
 
-                    if points[0].first() == points[0].last() {
-                        Geometry::new(Value::Polygon(vec![points]))
-                    } else {
-                        Geometry::new(Value::LineString(points))
-                    }
+                if points[0].first() == points[0].last() {
+                    Geometry::new(Value::Polygon(vec![points]))
+                } else {
+                    Geometry::new(Value::LineString(points))
                 }
-                _ => panic!("Element not recognized"),
-            };
-
-            let mut properties = Map::new();
-            match &element {
-                Element::Node(n) => n
-                    .tags
-                    .iter()
-                    .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
-                    .for_each(drop),
-                Element::Way(w) => w
-                    .tags
-                    .iter()
-                    .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
-                    .for_each(drop),
-                _ => panic!("Element not recognized"),
             }
+            _ => panic!("Element not recognized"),
+        };
 
-            Feature {
-                bbox: None,
-                geometry: Some(geometry),
-                id: None,
-                properties: Some(properties),
-                foreign_members: None,
-            }
-        })
-        .collect::<Vec<Feature>>();
+        let mut properties = Map::new();
+        match &element {
+            Element::Node(n) => n
+                .tags
+                .iter()
+                .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
+                .for_each(drop),
+            Element::Way(w) => w
+                .tags
+                .iter()
+                .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
+                .for_each(drop),
+            _ => panic!("Element not recognized"),
+        }
 
-    let feature_collection = FeatureCollection {
-        bbox: None,
-        features: features,
-        foreign_members: None,
-    };
+        let feature = Feature {
+            bbox: None,
+            geometry: Some(geometry),
+            id: None,
+            properties: Some(properties),
+            foreign_members: None,
+        };
 
-    //println!("{}", feature_collection.to_string());
-}
+        writer.write(feature.to_string().as_bytes()).unwrap();
 
-#[cfg(test)]
-mod parser_tests {
-    use super::*;
-
-    #[test]
-    fn parse_xml() {
-        parse("./examples/overpass.xml");
+        if iterator.peek().is_some() {
+            writer.write(b",").unwrap();
+        }
     }
+
+    writer.write(b"]}").unwrap();
 }
