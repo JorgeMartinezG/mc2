@@ -9,6 +9,9 @@ use xml::reader::{EventReader, XmlEvent};
 use geojson::{Feature, Geometry, Value};
 use serde_json::{to_value, Map};
 
+use std::io::Seek;
+use std::io::SeekFrom;
+
 #[derive(Debug)]
 enum Element {
     Initialized,
@@ -110,10 +113,14 @@ pub fn parse(read_path: &str, write_path: &str) {
     let mut writer = BufWriter::new(writer_file);
 
     let mut ref_nodes: HashMap<i64, Node> = HashMap::new();
-    let mut elements: HashMap<i64, Element> = HashMap::new();
 
     let mut current_element = Element::Initialized;
     let mut parser = EventReader::new(file);
+
+    writer
+        .write(r#"{"type": "FeatureCollection","features": ["#.as_bytes())
+        .unwrap();
+
     loop {
         let evt = parser.next().expect("Parsing error!");
         match evt {
@@ -152,11 +159,57 @@ pub fn parse(read_path: &str, write_path: &str) {
                             if n.tags.len() == 0 {
                                 ref_nodes.insert(n.id, n.clone());
                             } else {
-                                elements.insert(n.id, Element::Node(n.clone()));
+                                let geom = Geometry::new(Value::Point(n.to_vec()));
+                                let mut properties = Map::new();
+                                n.tags
+                                    .iter()
+                                    .map(|t| {
+                                        properties.insert(
+                                            t.key.clone(),
+                                            to_value(t.value.clone()).unwrap(),
+                                        )
+                                    })
+                                    .for_each(drop);
+                                let feature = Feature {
+                                    bbox: None,
+                                    geometry: Some(geom),
+                                    id: None,
+                                    properties: Some(properties),
+                                    foreign_members: None,
+                                };
+
+                                writer.write(feature.to_string().as_bytes()).unwrap();
                             }
                         }
                         Element::Way(ref w) => {
-                            elements.insert(w.id, Element::Way(w.clone()));
+                            let points = w
+                                .nodes
+                                .iter()
+                                .map(|n| n.to_vec())
+                                .collect::<Vec<Vec<f64>>>();
+
+                            let mut geom = Geometry::new(Value::LineString(points.clone()));
+
+                            if &points[0].first() == &points[0].last() {
+                                geom = Geometry::new(Value::Polygon(vec![points]));
+                            }
+                            let mut properties = Map::new();
+                            w.tags
+                                .iter()
+                                .map(|t| {
+                                    properties
+                                        .insert(t.key.clone(), to_value(t.value.clone()).unwrap())
+                                })
+                                .for_each(drop);
+                            let feature = Feature {
+                                bbox: None,
+                                geometry: Some(geom),
+                                id: None,
+                                properties: Some(properties),
+                                foreign_members: None,
+                            };
+
+                            writer.write(feature.to_string().as_bytes()).unwrap();
                         }
                         _ => continue,
                     },
@@ -164,64 +217,15 @@ pub fn parse(read_path: &str, write_path: &str) {
                     _ => continue,
                 }
                 current_element = Element::Initialized;
+                writer.write(b",").unwrap();
             }
-            XmlEvent::EndDocument => break,
+            XmlEvent::EndDocument => {
+                writer.seek(SeekFrom::End(0)).unwrap();
+                writer.seek(SeekFrom::Current(-1)).unwrap();
+                writer.write("]}".as_bytes()).unwrap();
+                break;
+            }
             _ => continue,
         }
     }
-
-    writer
-        .write(r#"{"type": "FeatureCollection","features": ["#.as_bytes())
-        .unwrap();
-    let mut iterator = elements.into_iter().peekable();
-    while let Some((_id, element)) = iterator.next() {
-        let geometry = match &element {
-            Element::Node(n) => Geometry::new(Value::Point(n.to_vec())),
-            Element::Way(w) => {
-                let points = w
-                    .nodes
-                    .iter()
-                    .map(|n| n.to_vec())
-                    .collect::<Vec<Vec<f64>>>();
-
-                if points[0].first() == points[0].last() {
-                    Geometry::new(Value::Polygon(vec![points]))
-                } else {
-                    Geometry::new(Value::LineString(points))
-                }
-            }
-            _ => panic!("Element not recognized"),
-        };
-
-        let mut properties = Map::new();
-        match &element {
-            Element::Node(n) => n
-                .tags
-                .iter()
-                .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
-                .for_each(drop),
-            Element::Way(w) => w
-                .tags
-                .iter()
-                .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
-                .for_each(drop),
-            _ => panic!("Element not recognized"),
-        }
-
-        let feature = Feature {
-            bbox: None,
-            geometry: Some(geometry),
-            id: None,
-            properties: Some(properties),
-            foreign_members: None,
-        };
-
-        writer.write(feature.to_string().as_bytes()).unwrap();
-
-        if iterator.peek().is_some() {
-            writer.write(b",").unwrap();
-        }
-    }
-
-    writer.write(b"]}").unwrap();
 }
