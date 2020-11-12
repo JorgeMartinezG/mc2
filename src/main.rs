@@ -3,8 +3,11 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use uuid::Uuid;
 
-use std::fs::create_dir;
+use std::fs::{create_dir, File};
 use std::path::{Path, PathBuf};
+
+use reqwest::blocking::Client;
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 
 const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
 
@@ -33,7 +36,7 @@ impl Overpass {
             .collect::<Vec<String>>()
     }
 
-    fn to_string(&self) -> String {
+    fn build_query(&self) -> String {
         let nodes = Overpass::create_filter("node", &self.nodes, &self.polygon_str);
         let ways = Overpass::create_filter("way", &self.ways, &self.polygon_str);
         let polygons = Overpass::create_filter("relation", &self.polygons, &self.polygon_str);
@@ -87,7 +90,7 @@ impl Overpass {
             .join(" ")
     }
 
-    fn new(campaign: &Campaign) -> Overpass {
+    fn new(campaign: Campaign) -> Overpass {
         let polygon_str = Overpass::geom(&campaign.geom);
         let mut nodes = Vec::new();
         let mut ways = Vec::new();
@@ -111,6 +114,25 @@ impl Overpass {
             polygons: polygons.into_iter().flatten().collect::<Vec<SearchTag>>(),
             polygon_str: polygon_str,
             url: OVERPASS_URL.to_string(),
+        }
+    }
+
+    fn fetch_data(&self, storage_path: &PathBuf) {
+        let mut headers = HeaderMap::new();
+        headers.insert(USER_AGENT, HeaderValue::from_static("HotOSM"));
+        let query = self.build_query();
+        let mut resp = Client::new()
+            .post(&self.url)
+            .headers(headers)
+            .form(&[("data", &query)])
+            .send()
+            .expect("Error executing overpass request");
+
+        let file_path = format!("{}/overpass.xml", storage_path.display());
+
+        if resp.status().is_success() {
+            let mut buffer = File::create(file_path).expect("Could not open file");
+            resp.copy_to(&mut buffer).expect("Could not copy to file");
         }
     }
 }
@@ -138,6 +160,14 @@ struct LocalStorage {
     path: PathBuf,
 }
 
+impl LocalStorage {
+    fn new(uuid: &str) -> Self {
+        LocalStorage {
+            path: Path::new(".").join(uuid),
+        }
+    }
+}
+
 struct CampaignRun {
     uuid: String,
     source: Overpass,
@@ -152,16 +182,25 @@ impl CampaignRun {
         }
     }
 
-    fn new(source: Overpass, storage: LocalStorage) -> Self {
+    fn new(campaign: Campaign) -> Self {
         let uuid = Uuid::new_v4();
         let mut buffer = Uuid::encode_buffer();
         let uuid = uuid.to_simple().encode_lower(&mut buffer).to_owned();
 
+        let storage = LocalStorage::new(&uuid);
+
         CampaignRun {
-            source: source,
+            source: Overpass::new(campaign),
             storage: storage,
             uuid: uuid,
         }
+    }
+
+    fn run(&self) {
+        if self.storage.path.exists() == false {
+            create_dir(&self.storage.path).unwrap();
+        }
+        self.source.fetch_data(&self.storage.path);
     }
 }
 
@@ -235,8 +274,8 @@ mod campaign_test {
         "#;
 
         let data: Campaign = serde_json::from_str(campaign_str).expect("failed reading file");
-        let overpass = Overpass::new(&data);
-
+        let run = CampaignRun::new(data);
+        run.run();
         //run = Cam
     }
 }
