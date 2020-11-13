@@ -103,13 +103,12 @@ impl Overpass {
         campaign
             .geometry_types
             .iter()
-            .map(|t| match t.as_str() {
+            .for_each(|t| match t.as_str() {
                 "points" => nodes.push(tags.to_vec()),
                 "lines" => ways.push(tags.to_vec()),
                 "polygons" => polygons.push(tags.to_vec()),
                 _ => panic!("Geometry type missing"),
-            })
-            .for_each(drop);
+            });
 
         Overpass {
             nodes: nodes.into_iter().flatten().collect::<Vec<SearchTag>>(),
