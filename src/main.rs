@@ -4,12 +4,53 @@ mod overpass;
 mod parser;
 mod storage;
 
-use serde_json;
-
 use campaign::{Campaign, CampaignRun};
+use serde_json;
+use std::fs::create_dir;
+use std::path::PathBuf;
+use structopt::StructOpt;
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "mc2", about = "Command line for MapCampaigner v2")]
+struct Opts {
+    #[structopt(subcommand)]
+    /// The command to run
+    command: Command,
+
+    // Debug mode, does not delete temp folder.
+    #[structopt(short, long)]
+    debug: bool,
+
+    /// Storage folder.
+    #[structopt(parse(from_os_str))]
+    storage: PathBuf,
+}
+
+#[derive(Debug, StructOpt)]
+enum Command {
+    /// Run Campaign computarion.
+    #[structopt()]
+    Run { uuid: String },
+
+    /// Create storage directory.
+    #[structopt()]
+    CreateStore,
+
+    /// Create a campaign
+    #[structopt()]
+    CreateCampaign { json_path: String },
+}
 
 fn main() {
-    println!("Hello world");
+    let opt = Opts::from_args();
+
+    match opt.command {
+        Command::CreateCampaign { ref json_path } => println!("{:?}", json_path),
+        Command::Run { ref uuid } => println!("{:?}", uuid),
+        Command::CreateStore => println!("AAA"),
+    }
+
+    println!("{:?}", opt);
 }
 
 #[cfg(test)]
