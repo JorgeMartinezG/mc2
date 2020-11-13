@@ -2,6 +2,8 @@ use geojson::{Feature, Geometry, Value};
 use serde_json::{to_value, Map};
 use xml::attribute::OwnedAttribute;
 
+use crate::campaign::SearchTag;
+
 pub fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
     attributes
         .iter()
@@ -60,9 +62,27 @@ impl Node {
         }
     }
 
-    pub fn to_feature(&self) -> Feature {
+    pub fn to_feature(&self, search_tags: &Vec<SearchTag>) -> Feature {
         let geom = Geometry::new(Value::Point(self.to_vec()));
         let mut properties = Map::new();
+
+        let keys: Vec<String> = self.tags.iter().map(|t| t.key).collect();
+
+        let mut completeness = 0;
+
+        search_tags.iter().for_each(|st| {
+            if keys.contains(&st.key) {
+                let tag = self.tags.iter().find(|t| t.key == st.key).unwrap();
+                if st.values.contains(&tag.value) {
+                    completeness += 1;
+                }
+            }
+        });
+
+        // Compute completeness for primary tag.
+        // search_tags.iter().for_each(|st| {
+        //     if st.key
+        // });
 
         self.tags
             .iter()

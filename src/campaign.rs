@@ -8,7 +8,7 @@ use crate::parser::parse;
 use crate::overpass::Overpass;
 use crate::storage::LocalStorage;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Campaign {
     pub name: String,
     pub geometry_types: Vec<String>,
@@ -26,6 +26,7 @@ pub struct SearchTag {
 pub struct CampaignRun {
     source: Overpass,
     storage: LocalStorage,
+    search_tags: Vec<SearchTag>,
 }
 
 impl CampaignRun {
@@ -37,8 +38,9 @@ impl CampaignRun {
         let storage = LocalStorage::new(&uuid);
 
         CampaignRun {
-            source: Overpass::new(campaign),
+            source: Overpass::new(campaign.clone()),
             storage: storage,
+            search_tags: campaign.tags,
         }
     }
 
@@ -51,6 +53,6 @@ impl CampaignRun {
         let json_path = self.storage.json();
 
         self.source.fetch_data(&xml_path);
-        parse(&xml_path, &json_path);
+        parse(&xml_path, &json_path, &self.tags);
     }
 }

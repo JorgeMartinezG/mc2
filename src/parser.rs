@@ -8,9 +8,10 @@ use xml::reader::{EventReader, XmlEvent};
 use std::io::Seek;
 use std::io::SeekFrom;
 
+use crate::campaign::SearchTag;
 use crate::elements::{find_attribute, Element, Node, Tag, Way};
 
-pub fn parse(read_path: &str, write_path: &str) {
+pub fn parse(read_path: &str, write_path: &str, search_tags: &Vec<SearchTag>) {
     let file = BufReader::new(File::open(read_path).expect("Could not open xml file"));
 
     let writer_file = File::create(write_path).unwrap();
@@ -63,7 +64,7 @@ pub fn parse(read_path: &str, write_path: &str) {
                             if n.tags.len() == 0 {
                                 ref_nodes.insert(n.id, n.clone());
                             } else {
-                                let feat = n.to_feature().to_string();
+                                let feat = n.to_feature(&search_tags).to_string();
                                 writer.write(feat.as_bytes()).unwrap();
                             }
                         }
