@@ -8,25 +8,25 @@ use crate::parser::parse;
 use crate::overpass::Overpass;
 use crate::storage::LocalStorage;
 
+use std::collections::HashMap;
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct Campaign {
     pub name: String,
     pub geometry_types: Vec<String>,
-    pub tags: Vec<SearchTag>,
+    pub tags: HashMap<String, SearchTag>,
     pub geom: GeoJson,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct SearchTag {
-    pub key: String,
     pub values: Vec<String>,
-    pub secondary: Option<Vec<SearchTag>>,
+    pub secondary: Option<HashMap<String, SearchTag>>,
 }
 
 pub struct CampaignRun {
     source: Overpass,
     storage: LocalStorage,
-    search_tags: Vec<SearchTag>,
 }
 
 impl CampaignRun {
@@ -40,7 +40,6 @@ impl CampaignRun {
         CampaignRun {
             source: Overpass::new(campaign.clone()),
             storage: storage,
-            search_tags: campaign.tags,
         }
     }
 
@@ -53,6 +52,6 @@ impl CampaignRun {
         let json_path = self.storage.json();
 
         self.source.fetch_data(&xml_path);
-        parse(&xml_path, &json_path, &self.tags);
+        parse(&xml_path, &json_path);
     }
 }

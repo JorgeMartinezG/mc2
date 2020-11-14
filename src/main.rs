@@ -62,12 +62,17 @@ mod campaign_test {
             {
                 "name": "Test Campaign",
                 "geometry_types": ["points", "polygons"],
-                "tags": [
-                    {
-                        "key": "amenity",
-                        "values": []
+                "tags": {
+                    "amenity": {
+                        "values": ["bar", "pub"],
+                        "secondary": {
+                            "name" : {
+                                "values": []
+                            } 
+                        }
                     }
-                ],
+
+                },
                 "geom": {
                     "type": "FeatureCollection",
                     "features": [{
@@ -109,8 +114,8 @@ mod campaign_test {
             }
         "#;
 
-        let data: Campaign = serde_json::from_str(campaign_str).expect("failed reading file");
-        let run = CampaignRun::new(data);
+        let campaign: Campaign = serde_json::from_str(campaign_str).expect("failed reading file");
+        let run = CampaignRun::new(campaign);
         run.run();
     }
 }

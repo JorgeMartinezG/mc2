@@ -5,37 +5,30 @@ use std::fs::File;
 
 const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
 
-use crate::campaign::{Campaign, SearchTag};
+use crate::campaign::Campaign;
 
 #[derive(Debug)]
 pub struct Overpass {
-    nodes: Vec<SearchTag>,
-    ways: Vec<SearchTag>,
-    polygons: Vec<SearchTag>,
+    nodes: Vec<String>,
+    ways: Vec<String>,
+    relations: Vec<String>,
     polygon_str: String,
     url: String,
 }
 
 impl Overpass {
-    fn create_filter(element: &str, tags: &Vec<SearchTag>, poly_str: &String) -> Vec<String> {
-        tags.iter()
-            .map(|ptag| {
-                if ptag.values.len() == 0 {
-                    return format!("{}(poly: '{}')['{}'];", element, poly_str, ptag.key);
-                }
-                let values = ptag.values.join(" | ");
-                return format!(
-                    "{}(poly: '{}')['{}'~'{}'];",
-                    element, poly_str, ptag.key, values
-                );
-            })
-            .collect::<Vec<String>>()
+    fn create_filter(element: &str, tag: &(&str, Vec<String>), poly_str: &String) -> String {
+        if tag.1.len() == 0 {
+            return format!("{}(poly: '{}')['{}'];", element, poly_str, tag.0);
+        }
+        let values = tag.1.join(" | ");
+        return format!(
+            "{}(poly: '{}')['{}'~'{}'];",
+            element, poly_str, tag.0, values
+        );
     }
 
     fn build_query(&self) -> String {
-        let nodes = Overpass::create_filter("node", &self.nodes, &self.polygon_str);
-        let ways = Overpass::create_filter("way", &self.ways, &self.polygon_str);
-        let polygons = Overpass::create_filter("relation", &self.polygons, &self.polygon_str);
         let query = format!(
             r#"(
             (
@@ -49,9 +42,9 @@ impl Overpass {
             );>>;>;
             );out meta;
         "#,
-            nodes.join("\n"),
-            ways.join("\n"),
-            polygons.join("\n")
+            self.nodes.join("\n"),
+            self.ways.join("\n"),
+            self.relations.join("\n"),
         );
 
         query
@@ -90,23 +83,42 @@ impl Overpass {
         let polygon_str = Overpass::geom(&campaign.geom);
         let mut nodes = Vec::new();
         let mut ways = Vec::new();
-        let mut polygons = Vec::new();
-
+        let mut relations = Vec::new();
         let ref tags = campaign.tags;
+
         campaign
             .geometry_types
             .iter()
             .for_each(|t| match t.as_str() {
-                "points" => nodes.push(tags.to_vec()),
-                "lines" => ways.push(tags.to_vec()),
-                "polygons" => polygons.push(tags.to_vec()),
-                _ => panic!("Geometry type missing"),
+                "points" => tags.iter().for_each(|(k, v)| {
+                    nodes.push(Overpass::create_filter(
+                        "node",
+                        &(k, v.values.clone()),
+                        &polygon_str,
+                    ))
+                }),
+                "lines" => tags.iter().for_each(|(k, v)| {
+                    ways.push(Overpass::create_filter(
+                        "way",
+                        &(k, v.values.clone()),
+                        &polygon_str,
+                    ))
+                }),
+                "polygons" => tags.iter().for_each(|(k, v)| {
+                    relations.push(Overpass::create_filter(
+                        "way",
+                        &(k, v.values.clone()),
+                        &polygon_str,
+                    ))
+                }),
+
+                _ => panic!("Geometry type not recognized"),
             });
 
         Overpass {
-            nodes: nodes.into_iter().flatten().collect::<Vec<SearchTag>>(),
-            ways: ways.into_iter().flatten().collect::<Vec<SearchTag>>(),
-            polygons: polygons.into_iter().flatten().collect::<Vec<SearchTag>>(),
+            nodes: nodes,
+            ways: ways,
+            relations: relations,
             polygon_str: polygon_str,
             url: OVERPASS_URL.to_string(),
         }
