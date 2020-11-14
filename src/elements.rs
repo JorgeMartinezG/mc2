@@ -13,6 +13,66 @@ pub fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
         .clone()
 }
 
+fn check_value(tag_value: &String, values: &Vec<String>) -> Option<String> {
+    let mut error = None;
+    if values.len() != 0 && values.contains(tag_value) == false {
+        error = Some(format!("Value mismatch - expected values: {:?}", values));
+    }
+
+    error
+}
+
+fn validate_tags(tags: &Vec<Tag>, search_key: &String, search_tag: &SearchTag) -> Vec<String> {
+    let mut search_errors = Vec::new();
+
+    match tags.iter().find(|t| t.key.as_str() == search_key) {
+        Some(tag) => {
+            match check_value(&tag.value, &search_tag.values) {
+                Some(err) => search_errors.push(err),
+                None => (),
+            };
+
+            if search_tag.secondary.is_none() {
+                return search_errors;
+            }
+
+            search_tag
+                .secondary
+                .as_ref()
+                .unwrap()
+                .iter()
+                .for_each(|(sk, st)| {
+                    match tags.iter().find(|t| t.key.as_str() == sk) {
+                        Some(tag) => match check_value(&tag.value, &st.values) {
+                            Some(err) => search_errors.push(err),
+                            None => (),
+                        },
+                        None => search_errors.push(format!("Key {} not found", sk)),
+                    };
+                });
+        }
+        None => (),
+    }
+
+    // Apply secondary check
+    search_errors
+}
+
+fn compute_errors(
+    element_tags: &Vec<Tag>,
+    search_tags: &HashMap<String, SearchTag>,
+) -> Vec<String> {
+    let errors = search_tags
+        .iter()
+        .map(|(search_key, search_tag)| validate_tags(&element_tags, &search_key, &search_tag))
+        .filter(|x| x.len() > 0)
+        .flatten()
+        .collect::<Vec<String>>();
+    // Check Value
+
+    errors
+}
+
 #[derive(Debug)]
 pub enum Element {
     Initialized,
@@ -66,41 +126,12 @@ impl Node {
         let geom = Geometry::new(Value::Point(self.to_vec()));
         let mut properties = Map::new();
 
-        let key = "amenity";
-        let search_tag = search_tags.get(key).unwrap();
-
-        // Check Value
-        let mut errors = Vec::new();
-        match self.tags.iter().find(|t| t.key == key) {
-            Some(t) => {
-                if search_tag.values.len() != 0 && search_tag.values.contains(&t.value) == false {
-                    errors.push("Value mismatch");
-                }
-
-                match &search_tag.secondary {
-                    Some(st) => st.iter().for_each(|(k, v)| {
-                        match self.tags.iter().find(|t| t.key.as_str() == k) {
-                            Some(t) => {
-                                if v.values.len() != 0 && v.values.contains(&t.value) == false {
-                                    errors.push("Value mismatch");
-                                }
-                            }
-
-                            None => errors.push("key not found"),
-                        }
-                    }),
-                    None => (),
-                }
-            }
-            None => (),
-        }
-        println!("{:?}", errors);
-
         // Compute completeness for primary tag.
         // search_tags.iter().for_each(|st| {
         //     if st.key
         // });
-
+        let errors = compute_errors(&self.tags, search_tags);
+        println!("{:?}", errors);
         self.tags
             .iter()
             .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
@@ -136,7 +167,7 @@ impl Way {
         }
     }
 
-    pub fn to_feature(&self) -> Feature {
+    pub fn to_feature(&self, search_tags: &HashMap<String, SearchTag>) -> Feature {
         let points = self
             .nodes
             .iter()
@@ -149,6 +180,9 @@ impl Way {
             geom = Geometry::new(Value::Polygon(vec![points]));
         }
         let mut properties = Map::new();
+
+        let errors = compute_errors(&self.tags, search_tags);
+        println!("{:?}", errors);
 
         self.tags
             .iter()

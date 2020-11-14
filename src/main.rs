@@ -64,7 +64,7 @@ mod campaign_test {
                 "geometry_types": ["points", "polygons"],
                 "tags": {
                     "amenity": {
-                        "values": ["bar"],
+                        "values": ["pub"],
                         "secondary": {
                             "name" : {
                                 "values": []
