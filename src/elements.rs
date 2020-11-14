@@ -1,5 +1,7 @@
+use crate::campaign::SearchTag;
 use geojson::{Feature, Geometry, Value};
 use serde_json::{to_value, Map};
+use std::collections::HashMap;
 use xml::attribute::OwnedAttribute;
 
 pub fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
@@ -60,9 +62,39 @@ impl Node {
         }
     }
 
-    pub fn to_feature(&self) -> Feature {
+    pub fn to_feature(&self, search_tags: &HashMap<String, SearchTag>) -> Feature {
         let geom = Geometry::new(Value::Point(self.to_vec()));
         let mut properties = Map::new();
+
+        let key = "amenity";
+        let search_tag = search_tags.get(key).unwrap();
+
+        // Check Value
+        let mut errors = Vec::new();
+        match self.tags.iter().find(|t| t.key == key) {
+            Some(t) => {
+                if search_tag.values.len() != 0 && search_tag.values.contains(&t.value) == false {
+                    errors.push("Value mismatch");
+                }
+
+                match &search_tag.secondary {
+                    Some(st) => st.iter().for_each(|(k, v)| {
+                        match self.tags.iter().find(|t| t.key.as_str() == k) {
+                            Some(t) => {
+                                if v.values.len() != 0 && v.values.contains(&t.value) == false {
+                                    errors.push("Value mismatch");
+                                }
+                            }
+
+                            None => errors.push("key not found"),
+                        }
+                    }),
+                    None => (),
+                }
+            }
+            None => (),
+        }
+        println!("{:?}", errors);
 
         // Compute completeness for primary tag.
         // search_tags.iter().for_each(|st| {

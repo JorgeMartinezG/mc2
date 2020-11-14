@@ -27,6 +27,7 @@ pub struct SearchTag {
 pub struct CampaignRun {
     source: Overpass,
     storage: LocalStorage,
+    tags: HashMap<String, SearchTag>,
 }
 
 impl CampaignRun {
@@ -40,6 +41,7 @@ impl CampaignRun {
         CampaignRun {
             source: Overpass::new(campaign.clone()),
             storage: storage,
+            tags: campaign.tags.clone(),
         }
     }
 
@@ -52,6 +54,6 @@ impl CampaignRun {
         let json_path = self.storage.json();
 
         self.source.fetch_data(&xml_path);
-        parse(&xml_path, &json_path);
+        parse(&xml_path, &json_path, &self.tags);
     }
 }
