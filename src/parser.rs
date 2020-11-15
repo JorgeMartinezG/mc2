@@ -64,12 +64,12 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                             if n.tags.len() == 0 {
                                 ref_nodes.insert(n.id, n.clone());
                             } else {
-                                let feat = n.to_feature(search_tags).to_string();
-                                writer.write(feat.as_bytes()).unwrap();
+                                let feature = format!("{},", n.to_feature(search_tags).to_string());
+                                writer.write(feature.as_bytes()).unwrap();
                             }
                         }
                         Element::Way(ref w) => {
-                            let feature = w.to_feature(search_tags).to_string();
+                            let feature = format!("{},", w.to_feature(search_tags).to_string());
                             writer.write(feature.as_bytes()).unwrap();
                         }
                         _ => continue,
@@ -78,7 +78,6 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                     _ => continue,
                 }
                 current_element = Element::Initialized;
-                writer.write(b",").unwrap();
             }
             XmlEvent::EndDocument => {
                 writer.seek(SeekFrom::End(0)).unwrap();

@@ -22,7 +22,11 @@ fn check_value(tag_value: &String, values: &Vec<String>) -> Option<String> {
     error
 }
 
-fn validate_tags(tags: &Vec<Tag>, search_key: &String, search_tag: &SearchTag) -> Vec<String> {
+fn validate_tags(
+    tags: &Vec<Tag>,
+    search_key: &String,
+    search_tag: &SearchTag,
+) -> (String, Vec<String>) {
     let mut search_errors = Vec::new();
 
     match tags.iter().find(|t| t.key.as_str() == search_key) {
@@ -33,7 +37,7 @@ fn validate_tags(tags: &Vec<Tag>, search_key: &String, search_tag: &SearchTag) -
             };
 
             if search_tag.secondary.is_none() {
-                return search_errors;
+                return (search_key.to_string(), search_errors);
             }
 
             search_tag
@@ -55,19 +59,18 @@ fn validate_tags(tags: &Vec<Tag>, search_key: &String, search_tag: &SearchTag) -
     }
 
     // Apply secondary check
-    search_errors
+    (search_key.to_string(), search_errors)
 }
 
 fn compute_errors(
     element_tags: &Vec<Tag>,
     search_tags: &HashMap<String, SearchTag>,
-) -> Vec<String> {
+) -> HashMap<String, Vec<String>> {
     let errors = search_tags
         .iter()
         .map(|(search_key, search_tag)| validate_tags(&element_tags, &search_key, &search_tag))
-        .filter(|x| x.len() > 0)
-        .flatten()
-        .collect::<Vec<String>>();
+        .filter(|x| x.1.len() > 0)
+        .collect::<HashMap<String, Vec<String>>>();
     // Check Value
 
     errors
@@ -131,7 +134,8 @@ impl Node {
         //     if st.key
         // });
         let errors = compute_errors(&self.tags, search_tags);
-        println!("{:?}", errors);
+        properties.insert("Errors".to_string(), to_value(errors).unwrap());
+
         self.tags
             .iter()
             .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
