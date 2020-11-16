@@ -90,7 +90,20 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
             XmlEvent::EndDocument => {
                 writer.seek(SeekFrom::End(0)).unwrap();
                 writer.seek(SeekFrom::Current(-1)).unwrap();
-                writer.write("]}".as_bytes()).unwrap();
+                writer.write(b"]").unwrap();
+
+                let feature_count_str = feature_count
+                    .into_iter()
+                    .map(|(k, v)| format!(" \"{}\":{}", k, v))
+                    .collect::<Vec<String>>()
+                    .join(",");
+
+                let features_str = format!(
+                    r#","properties": {{ "feature_counts": {{ {}  }} }} }}"#,
+                    feature_count_str
+                );
+
+                writer.write(features_str.as_bytes()).unwrap();
 
                 break;
             }
