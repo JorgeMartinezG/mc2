@@ -22,6 +22,8 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
     let mut current_element = Element::Initialized;
     let mut parser = EventReader::new(file);
 
+    let mut feature_count: HashMap<String, i64> = HashMap::new();
+
     writer
         .write(r#"{"type": "FeatureCollection","features": ["#.as_bytes())
         .unwrap();
@@ -64,12 +66,18 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                             if n.tags.len() == 0 {
                                 ref_nodes.insert(n.id, n.clone());
                             } else {
-                                let feature = format!("{},", n.to_feature(search_tags).to_string());
+                                let feature = format!(
+                                    "{},",
+                                    n.to_feature(search_tags, &mut feature_count).to_string()
+                                );
                                 writer.write(feature.as_bytes()).unwrap();
                             }
                         }
                         Element::Way(ref w) => {
-                            let feature = format!("{},", w.to_feature(search_tags).to_string());
+                            let feature = format!(
+                                "{},",
+                                w.to_feature(search_tags, &mut feature_count).to_string()
+                            );
                             writer.write(feature.as_bytes()).unwrap();
                         }
                         _ => continue,
@@ -83,6 +91,7 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                 writer.seek(SeekFrom::End(0)).unwrap();
                 writer.seek(SeekFrom::Current(-1)).unwrap();
                 writer.write("]}".as_bytes()).unwrap();
+
                 break;
             }
             _ => continue,

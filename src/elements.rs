@@ -4,6 +4,8 @@ use serde_json::{to_value, Map};
 use std::collections::HashMap;
 use xml::attribute::OwnedAttribute;
 
+use serde::Serialize;
+
 pub fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
     attributes
         .iter()
@@ -22,11 +24,18 @@ fn check_value(tag_value: &String, values: &Vec<String>) -> Option<String> {
     error
 }
 
+#[derive(Serialize)]
+struct TagErrors {
+    errors: Vec<String>,
+    completeness: f64,
+}
+
 fn validate_tags(
     tags: &Vec<Tag>,
     search_key: &String,
     search_tag: &SearchTag,
-) -> (String, Vec<String>) {
+    feature_count: &mut HashMap<String, i64>,
+) -> Option<(String, TagErrors)> {
     let mut search_errors = Vec::new();
 
     match tags.iter().find(|t| t.key.as_str() == search_key) {
@@ -36,16 +45,15 @@ fn validate_tags(
                 None => (),
             };
 
-            if search_tag.secondary.is_none() {
-                return (search_key.to_string(), search_errors);
+            if let Some(v) = feature_count.get_mut(&tag.key) {
+                *v = *v + 1;
+            } else {
+                feature_count.insert(tag.key.clone(), 1);
             }
 
-            search_tag
-                .secondary
-                .as_ref()
-                .unwrap()
-                .iter()
-                .for_each(|(sk, st)| {
+            match search_tag.secondary {
+                None => (),
+                Some(ref r) => r.iter().for_each(|(sk, st)| {
                     match tags.iter().find(|t| t.key.as_str() == sk) {
                         Some(tag) => match check_value(&tag.value, &st.values) {
                             Some(err) => search_errors.push(err),
@@ -53,24 +61,38 @@ fn validate_tags(
                         },
                         None => search_errors.push(format!("Key {} not found", sk)),
                     };
-                });
-        }
-        None => (),
-    }
+                }),
+            }
 
-    // Apply secondary check
-    (search_key.to_string(), search_errors)
+            let len_tags = match search_tag.secondary {
+                Some(ref t) => t.len() + 1,
+                None => 1,
+            };
+
+            let completeness = 1.0 - (search_errors.len() as f64 / len_tags as f64);
+            let tag_errors = TagErrors {
+                errors: search_errors,
+                completeness: completeness,
+            };
+
+            Some((search_key.to_string(), tag_errors))
+        }
+        None => None,
+    }
 }
 
 fn compute_errors(
     element_tags: &Vec<Tag>,
     search_tags: &HashMap<String, SearchTag>,
-) -> HashMap<String, Vec<String>> {
+    feature_count: &mut HashMap<String, i64>,
+) -> HashMap<String, TagErrors> {
     let errors = search_tags
         .iter()
-        .map(|(search_key, search_tag)| validate_tags(&element_tags, &search_key, &search_tag))
-        .filter(|x| x.1.len() > 0)
-        .collect::<HashMap<String, Vec<String>>>();
+        .map(|(search_key, search_tag)| {
+            validate_tags(&element_tags, &search_key, &search_tag, feature_count)
+        })
+        .filter_map(|x| x)
+        .collect::<HashMap<String, TagErrors>>();
     // Check Value
 
     errors
@@ -125,7 +147,11 @@ impl Node {
         }
     }
 
-    pub fn to_feature(&self, search_tags: &HashMap<String, SearchTag>) -> Feature {
+    pub fn to_feature(
+        &self,
+        search_tags: &HashMap<String, SearchTag>,
+        feature_count: &mut HashMap<String, i64>,
+    ) -> Feature {
         let geom = Geometry::new(Value::Point(self.to_vec()));
         let mut properties = Map::new();
 
@@ -133,13 +159,8 @@ impl Node {
         // search_tags.iter().for_each(|st| {
         //     if st.key
         // });
-        let errors = compute_errors(&self.tags, search_tags);
-        properties.insert("Errors".to_string(), to_value(errors).unwrap());
-
-        self.tags
-            .iter()
-            .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
-            .for_each(drop);
+        let errors = compute_errors(&self.tags, search_tags, feature_count);
+        properties.insert("stats".to_string(), to_value(&errors).unwrap());
 
         Feature {
             bbox: None,
@@ -171,7 +192,11 @@ impl Way {
         }
     }
 
-    pub fn to_feature(&self, search_tags: &HashMap<String, SearchTag>) -> Feature {
+    pub fn to_feature(
+        &self,
+        search_tags: &HashMap<String, SearchTag>,
+        feature_count: &mut HashMap<String, i64>,
+    ) -> Feature {
         let points = self
             .nodes
             .iter()
@@ -185,13 +210,8 @@ impl Way {
         }
         let mut properties = Map::new();
 
-        let errors = compute_errors(&self.tags, search_tags);
-        println!("{:?}", errors);
-
-        self.tags
-            .iter()
-            .map(|t| properties.insert(t.key.clone(), to_value(t.value.clone()).unwrap()))
-            .for_each(drop);
+        let errors = compute_errors(&self.tags, search_tags, feature_count);
+        properties.insert("errors".to_string(), to_value(&errors).unwrap());
 
         Feature {
             bbox: None,
