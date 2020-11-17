@@ -135,6 +135,15 @@ impl NElement {
         }
     }
 
+    pub fn add_contributor(&self, contributors: &mut HashMap<String, i64>) {
+        let user = self.get_user();
+        if let Some(v) = contributors.get_mut(&user) {
+            *v = *v + 1;
+        } else {
+            contributors.insert(user.clone(), 1);
+        }
+    }
+
     pub fn get_user(&self) -> String {
         match &self.props {
             Some(p) => p.user.clone(),

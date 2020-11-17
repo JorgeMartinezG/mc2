@@ -65,33 +65,21 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                                     element.coords[0].clone(),
                                 );
                             } else {
+                                element.add_contributor(&mut contributors);
                                 let feature = element
                                     .to_feature(search_tags, &mut feature_count)
                                     .to_string()
                                     + &",".to_string();
                                 writer.write(feature.as_bytes()).unwrap();
-
-                                let user = element.get_user();
-                                if let Some(v) = contributors.get_mut(&user) {
-                                    *v = *v + 1;
-                                } else {
-                                    contributors.insert(user.clone(), 1);
-                                }
                             }
                         }
                         Some(ElementType::Way) => {
+                            element.add_contributor(&mut contributors);
                             let feature = element
                                 .to_feature(search_tags, &mut feature_count)
                                 .to_string()
                                 + &",".to_string();
                             writer.write(feature.as_bytes()).unwrap();
-
-                            let user = element.get_user();
-                            if let Some(v) = contributors.get_mut(&user) {
-                                *v = *v + 1;
-                            } else {
-                                contributors.insert(user.clone(), 1);
-                            }
                         }
                         _ => continue,
                     },
