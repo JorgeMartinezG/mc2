@@ -65,14 +65,16 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                             } else {
                                 let feature = element
                                     .to_feature(search_tags, &mut feature_count)
-                                    .to_string();
+                                    .to_string()
+                                    + &",".to_string();
                                 writer.write(feature.as_bytes()).unwrap();
                             }
                         }
                         Some(ElementType::Way) => {
                             let feature = element
                                 .to_feature(search_tags, &mut feature_count)
-                                .to_string();
+                                .to_string()
+                                + &",".to_string();
                             writer.write(feature.as_bytes()).unwrap();
                         }
                         _ => continue,

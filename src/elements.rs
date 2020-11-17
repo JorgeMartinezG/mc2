@@ -151,7 +151,7 @@ impl NElement {
             let lon = find_attribute("lon", &attributes)
                 .parse::<f64>()
                 .expect("Error parsing");
-            let coords = vec![lat, lon];
+            let coords = vec![lon, lat];
 
             self.add_coords(coords);
         }
