@@ -98,6 +98,108 @@ fn compute_errors(
     errors
 }
 
+#[derive(Debug, PartialEq)]
+pub enum ElementType {
+    Way,
+    Node,
+}
+
+#[derive(Debug, Clone)]
+pub struct ElementProps {
+    pub id: i64,
+}
+
+pub type LatLng = Vec<f64>;
+
+#[derive(Debug)]
+pub struct NElement {
+    pub element_type: Option<ElementType>,
+    pub tags: Vec<Tag>,
+    pub coords: Vec<LatLng>,
+    pub props: Option<ElementProps>,
+}
+
+impl NElement {
+    pub fn init() -> Self {
+        NElement {
+            element_type: None,
+            tags: Vec::new(),
+            coords: Vec::new(),
+            props: None,
+        }
+    }
+
+    pub fn add_tag(&mut self, tag: Tag) {
+        self.tags.push(tag);
+    }
+
+    pub fn add_coords(&mut self, coords: LatLng) {
+        self.coords.push(coords);
+    }
+
+    pub fn set_properties(&mut self, element: &str, attributes: &Vec<OwnedAttribute>) {
+        let element_type = match element {
+            "node" => ElementType::Node,
+            "way" => ElementType::Way,
+            _ => panic!("Unrecognized element type"),
+        };
+
+        if element_type == ElementType::Node {
+            let lat = find_attribute("lat", &attributes)
+                .parse::<f64>()
+                .expect("Error parsing");
+            let lon = find_attribute("lon", &attributes)
+                .parse::<f64>()
+                .expect("Error parsing");
+            let coords = vec![lat, lon];
+
+            self.add_coords(coords);
+        }
+
+        self.element_type = Some(element_type);
+
+        let id = find_attribute("id", &attributes)
+            .parse::<i64>()
+            .expect("Error parsing");
+
+        let props = ElementProps { id: id };
+        self.props = Some(props);
+    }
+
+    pub fn to_feature(
+        &self,
+        search_tags: &HashMap<String, SearchTag>,
+        feature_count: &mut HashMap<String, i64>,
+    ) -> Feature {
+        let geom = match &self.element_type {
+            Some(ElementType::Node) => Geometry::new(Value::Point(self.coords[0].clone())),
+            Some(ElementType::Way) => {
+                let mut geom = Geometry::new(Value::LineString(self.coords.clone()));
+
+                if &self.coords[0].first() == &self.coords[0].last() {
+                    geom = Geometry::new(Value::Polygon(vec![self.coords.clone()]));
+                }
+
+                geom
+            }
+            _ => panic!("unknown element_type"),
+        };
+
+        let mut properties = Map::new();
+
+        let errors = compute_errors(&self.tags, search_tags, feature_count);
+        properties.insert("stats".to_string(), to_value(&errors).unwrap());
+
+        Feature {
+            bbox: None,
+            geometry: Some(geom),
+            id: None,
+            properties: Some(properties),
+            foreign_members: None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Element {
     Initialized,

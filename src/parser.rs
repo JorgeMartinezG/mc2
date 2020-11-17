@@ -9,7 +9,8 @@ use std::io::Seek;
 use std::io::SeekFrom;
 
 use crate::campaign::SearchTag;
-use crate::elements::{find_attribute, Element, Node, Tag, Way};
+
+use crate::elements::{find_attribute, ElementType, LatLng, NElement, Tag};
 
 pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, SearchTag>) {
     let file = BufReader::new(File::open(read_path).expect("Could not open xml file"));
@@ -17,12 +18,13 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
     let writer_file = File::create(write_path).unwrap();
     let mut writer = BufWriter::new(writer_file);
 
-    let mut ref_nodes: HashMap<i64, Node> = HashMap::new();
+    let mut ref_nodes: HashMap<i64, LatLng> = HashMap::new();
 
-    let mut current_element = Element::Initialized;
     let mut parser = EventReader::new(file);
 
     let mut feature_count: HashMap<String, i64> = HashMap::new();
+
+    let mut element = NElement::init();
 
     writer
         .write(r#"{"type": "FeatureCollection","features": ["#.as_bytes())
@@ -34,50 +36,43 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
             XmlEvent::StartElement {
                 name, attributes, ..
             } => match name.local_name.as_str() {
-                "node" => {
-                    let node = Node::new(&attributes);
-                    current_element = Element::Node(node);
-                }
+                "node" => element.set_properties("node", &attributes),
                 // If there are tags...include them in the current element.
                 "tag" => {
                     let tag = Tag::new(&attributes);
-                    current_element.add_tag(tag);
+                    element.add_tag(tag);
                 }
-                "way" => {
-                    let way = Way::new(&attributes);
-                    current_element = Element::Way(way);
-                }
+                "way" => element.set_properties("way", &attributes),
                 "nd" => {
                     let id = find_attribute("ref", &attributes)
                         .parse::<i64>()
                         .expect("Error parsing");
 
                     let node = ref_nodes.get(&id).unwrap().clone();
-                    if let Element::Way(ref mut w) = current_element {
-                        w.nodes.push(node);
-                    }
+                    element.add_coords(node);
                 }
                 _ => println!("{:?}", name),
             },
             XmlEvent::EndElement { name } => {
                 match name.local_name.as_str() {
-                    "node" | "way" => match current_element {
-                        Element::Node(ref n) => {
-                            if n.tags.len() == 0 {
-                                ref_nodes.insert(n.id, n.clone());
-                            } else {
-                                let feature = format!(
-                                    "{},",
-                                    n.to_feature(search_tags, &mut feature_count).to_string()
+                    "node" | "way" => match element.element_type {
+                        Some(ElementType::Node) => {
+                            if element.tags.len() == 0 {
+                                ref_nodes.insert(
+                                    element.props.clone().unwrap().id,
+                                    element.coords[0].clone(),
                                 );
+                            } else {
+                                let feature = element
+                                    .to_feature(search_tags, &mut feature_count)
+                                    .to_string();
                                 writer.write(feature.as_bytes()).unwrap();
                             }
                         }
-                        Element::Way(ref w) => {
-                            let feature = format!(
-                                "{},",
-                                w.to_feature(search_tags, &mut feature_count).to_string()
-                            );
+                        Some(ElementType::Way) => {
+                            let feature = element
+                                .to_feature(search_tags, &mut feature_count)
+                                .to_string();
                             writer.write(feature.as_bytes()).unwrap();
                         }
                         _ => continue,
@@ -85,7 +80,7 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
 
                     _ => continue,
                 }
-                current_element = Element::Initialized;
+                element = NElement::init();
             }
             XmlEvent::EndDocument => {
                 writer.seek(SeekFrom::End(0)).unwrap();
