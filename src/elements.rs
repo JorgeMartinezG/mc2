@@ -30,6 +30,21 @@ struct TagErrors {
     completeness: f64,
 }
 
+impl TagErrors {
+    fn new(search_tag: &SearchTag, search_errors: Vec<String>) -> Self {
+        let len_tags = match search_tag.secondary {
+            Some(ref t) => t.len() + 1,
+            None => 1,
+        };
+
+        let completeness = 1.0 - (search_errors.len() as f64 / len_tags as f64);
+        TagErrors {
+            errors: search_errors,
+            completeness: completeness,
+        }
+    }
+}
+
 fn validate_tags(
     tags: &Vec<Tag>,
     search_key: &String,
@@ -64,17 +79,7 @@ fn validate_tags(
                 }),
             }
 
-            let len_tags = match search_tag.secondary {
-                Some(ref t) => t.len() + 1,
-                None => 1,
-            };
-
-            let completeness = 1.0 - (search_errors.len() as f64 / len_tags as f64);
-            let tag_errors = TagErrors {
-                errors: search_errors,
-                completeness: completeness,
-            };
-
+            let tag_errors = TagErrors::new(search_tag, search_errors);
             Some((search_key.to_string(), tag_errors))
         }
         None => None,
