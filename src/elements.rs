@@ -112,6 +112,7 @@ pub enum ElementType {
 #[derive(Debug, Clone)]
 pub struct ElementProps {
     pub id: i64,
+    pub user: String,
 }
 
 pub type LatLng = Vec<f64>;
@@ -131,6 +132,13 @@ impl NElement {
             tags: Vec::new(),
             coords: Vec::new(),
             props: None,
+        }
+    }
+
+    pub fn get_user(&self) -> String {
+        match &self.props {
+            Some(p) => p.user.clone(),
+            None => panic!("User not found"),
         }
     }
 
@@ -167,7 +175,9 @@ impl NElement {
             .parse::<i64>()
             .expect("Error parsing");
 
-        let props = ElementProps { id: id };
+        let user = find_attribute("user", &attributes);
+
+        let props = ElementProps { id: id, user: user };
         self.props = Some(props);
     }
 

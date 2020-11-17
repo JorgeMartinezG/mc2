@@ -26,6 +26,8 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
 
     let mut element = NElement::init();
 
+    let mut contributors: HashMap<String, i64> = HashMap::new();
+
     writer
         .write(r#"{"type": "FeatureCollection","features": ["#.as_bytes())
         .unwrap();
@@ -68,6 +70,13 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                                     .to_string()
                                     + &",".to_string();
                                 writer.write(feature.as_bytes()).unwrap();
+
+                                let user = element.get_user();
+                                if let Some(v) = contributors.get_mut(&user) {
+                                    *v = *v + 1;
+                                } else {
+                                    contributors.insert(user.clone(), 1);
+                                }
                             }
                         }
                         Some(ElementType::Way) => {
@@ -76,6 +85,13 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                                 .to_string()
                                 + &",".to_string();
                             writer.write(feature.as_bytes()).unwrap();
+
+                            let user = element.get_user();
+                            if let Some(v) = contributors.get_mut(&user) {
+                                *v = *v + 1;
+                            } else {
+                                contributors.insert(user.clone(), 1);
+                            }
                         }
                         _ => continue,
                     },
@@ -95,9 +111,15 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                     .collect::<Vec<String>>()
                     .join(",");
 
+                let contributors_str = contributors
+                    .into_iter()
+                    .map(|(k, v)| format!(" \"{}\":{}", k, v))
+                    .collect::<Vec<String>>()
+                    .join(",");
+
                 let features_str = format!(
-                    r#","properties": {{ "feature_counts": {{ {}  }} }} }}"#,
-                    feature_count_str
+                    r#","properties": {{ "feature_counts": {{ {}  }} , "contributors": {{ {} }} }} }}"#,
+                    feature_count_str, contributors_str
                 );
 
                 writer.write(features_str.as_bytes()).unwrap();
