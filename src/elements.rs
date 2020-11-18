@@ -193,6 +193,11 @@ impl NElement {
         search_tags: &HashMap<String, SearchTag>,
         feature_count: &mut HashMap<String, i64>,
     ) -> Option<Feature> {
+        let errors = compute_errors(&self.tags, search_tags, feature_count);
+        if errors.len() == 0 {
+            return None;
+        }
+
         let geom = match &self.element_type {
             Some(ElementType::Node) => Geometry::new(Value::Point(self.coords[0].clone())),
             Some(ElementType::Way) => {
@@ -211,11 +216,6 @@ impl NElement {
         };
 
         let mut properties = Map::new();
-
-        let errors = compute_errors(&self.tags, search_tags, feature_count);
-        if errors.len() == 0 {
-            return None;
-        }
 
         properties.insert("stats".to_string(), to_value(&errors).unwrap());
 
