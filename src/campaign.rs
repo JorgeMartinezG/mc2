@@ -28,6 +28,7 @@ pub struct CampaignRun {
     source: Overpass,
     storage: LocalStorage,
     tags: HashMap<String, SearchTag>,
+    geometry_types: Vec<String>,
 }
 
 impl CampaignRun {
@@ -42,6 +43,7 @@ impl CampaignRun {
             source: Overpass::new(campaign.clone()),
             storage: storage,
             tags: campaign.tags.clone(),
+            geometry_types: campaign.geometry_types.clone(),
         }
     }
 
@@ -54,6 +56,6 @@ impl CampaignRun {
         let json_path = self.storage.json();
 
         self.source.fetch_data(&xml_path);
-        parse(&xml_path, &json_path, &self.tags);
+        parse(&xml_path, &json_path, &self.tags, &self.geometry_types);
     }
 }

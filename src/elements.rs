@@ -107,7 +107,7 @@ pub enum ElementType {
     Node,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ElementProps {
     pub id: i64,
     pub user: String,
@@ -192,6 +192,7 @@ impl NElement {
         &self,
         search_tags: &HashMap<String, SearchTag>,
         feature_count: &mut HashMap<String, i64>,
+        geometry_types: &Vec<String>,
     ) -> Option<Feature> {
         let errors = compute_errors(&self.tags, search_tags, feature_count);
         if errors.len() == 0 {
@@ -199,16 +200,32 @@ impl NElement {
         }
 
         let geom = match &self.element_type {
-            Some(ElementType::Node) => Geometry::new(Value::Point(self.coords[0].clone())),
+            Some(ElementType::Node) => {
+                if geometry_types.contains(&"points".to_string()) == false {
+                    return None;
+                }
+
+                Geometry::new(Value::Point(self.coords[0].clone()))
+            }
             Some(ElementType::Way) => {
                 if self.coords.len() == 0 {
                     return None;
                 }
 
-                let mut geom = Geometry::new(Value::LineString(self.coords.clone()));
-                if &self.coords.first() == &self.coords.last() {
-                    geom = Geometry::new(Value::Polygon(vec![self.coords.clone()]));
-                }
+                let geom = match &self.coords.first() == &self.coords.last() {
+                    false => {
+                        if geometry_types.contains(&"linestrings".to_string()) == false {
+                            return None;
+                        }
+                        Geometry::new(Value::LineString(self.coords.clone()))
+                    }
+                    true => {
+                        if geometry_types.contains(&"polygons".to_string()) == false {
+                            return None;
+                        }
+                        Geometry::new(Value::Polygon(vec![self.coords.clone()]))
+                    }
+                };
 
                 geom
             }
@@ -218,6 +235,14 @@ impl NElement {
         let mut properties = Map::new();
 
         properties.insert("stats".to_string(), to_value(&errors).unwrap());
+        properties.insert(
+            "id".to_string(),
+            to_value(self.props.as_ref().unwrap().id.clone()).unwrap(),
+        );
+        properties.insert(
+            "user".to_string(),
+            to_value(self.props.as_ref().unwrap().user.clone()).unwrap(),
+        );
 
         let feat = Feature {
             bbox: None,

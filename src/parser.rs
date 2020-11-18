@@ -12,7 +12,12 @@ use crate::campaign::SearchTag;
 
 use crate::elements::{find_attribute, ElementType, LatLng, NElement, Tag};
 
-pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, SearchTag>) {
+pub fn parse(
+    read_path: &str,
+    write_path: &str,
+    search_tags: &HashMap<String, SearchTag>,
+    geometry_types: &Vec<String>,
+) {
     let file = BufReader::new(File::open(read_path).expect("Could not open xml file"));
 
     let writer_file = File::create(write_path).unwrap();
@@ -67,19 +72,35 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                                     element.coords[0].clone(),
                                 );
                             } else {
-                                element.add_contributor(&mut contributors);
-                                element
-                                    .to_feature(search_tags, &mut feature_count)
-                                    .map(|f| f.to_string() + &",".to_string())
-                                    .map(|s| writer.write(s.as_bytes()));
+                                let feature = element.to_feature(
+                                    &search_tags,
+                                    &mut feature_count,
+                                    geometry_types,
+                                );
+                                match feature {
+                                    Some(f) => {
+                                        let feature_str = f.to_string() + &",".to_string();
+                                        writer.write(feature_str.as_bytes());
+                                        element.add_contributor(&mut contributors);
+                                    }
+                                    None => (),
+                                }
                             }
                         }
                         Some(ElementType::Way) => {
-                            element.add_contributor(&mut contributors);
-                            element
-                                .to_feature(search_tags, &mut feature_count)
-                                .map(|f| f.to_string() + &",".to_string())
-                                .map(|s| writer.write(s.as_bytes()));
+                            let feature = element.to_feature(
+                                &search_tags,
+                                &mut feature_count,
+                                geometry_types,
+                            );
+                            match feature {
+                                Some(f) => {
+                                    let feature_str = f.to_string() + &",".to_string();
+                                    writer.write(feature_str.as_bytes());
+                                    element.add_contributor(&mut contributors);
+                                }
+                                None => (),
+                            }
                         }
                         _ => continue,
                     },
