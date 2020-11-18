@@ -7,12 +7,11 @@ use xml::attribute::OwnedAttribute;
 use serde::Serialize;
 
 pub fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
-    attributes
-        .iter()
-        .find(|a| a.name.local_name == name)
-        .unwrap()
-        .value
-        .clone()
+    let attr = match attributes.iter().find(|a| a.name.local_name == name) {
+        Some(v) => v.value.clone(),
+        None => "".to_string(),
+    };
+    attr
 }
 
 fn check_value(tag_value: &String, values: &Vec<String>) -> Option<String> {
@@ -20,11 +19,10 @@ fn check_value(tag_value: &String, values: &Vec<String>) -> Option<String> {
     if values.len() != 0 && values.contains(tag_value) == false {
         error = Some(format!("Value mismatch - expected values: {:?}", values));
     }
-
     error
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct TagErrors {
     errors: Vec<String>,
     completeness: f64,
@@ -194,13 +192,16 @@ impl NElement {
         &self,
         search_tags: &HashMap<String, SearchTag>,
         feature_count: &mut HashMap<String, i64>,
-    ) -> Feature {
+    ) -> Option<Feature> {
         let geom = match &self.element_type {
             Some(ElementType::Node) => Geometry::new(Value::Point(self.coords[0].clone())),
             Some(ElementType::Way) => {
-                let mut geom = Geometry::new(Value::LineString(self.coords.clone()));
+                if self.coords.len() == 0 {
+                    return None;
+                }
 
-                if &self.coords[0].first() == &self.coords[0].last() {
+                let mut geom = Geometry::new(Value::LineString(self.coords.clone()));
+                if &self.coords.first() == &self.coords.last() {
                     geom = Geometry::new(Value::Polygon(vec![self.coords.clone()]));
                 }
 
@@ -212,15 +213,21 @@ impl NElement {
         let mut properties = Map::new();
 
         let errors = compute_errors(&self.tags, search_tags, feature_count);
+        if errors.len() == 0 {
+            return None;
+        }
+
         properties.insert("stats".to_string(), to_value(&errors).unwrap());
 
-        Feature {
+        let feat = Feature {
             bbox: None,
             geometry: Some(geom),
             id: None,
             properties: Some(properties),
             foreign_members: None,
-        }
+        };
+
+        Some(feat)
     }
 }
 

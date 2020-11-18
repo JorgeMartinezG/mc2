@@ -50,10 +50,12 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                         .parse::<i64>()
                         .expect("Error parsing");
 
-                    let node = ref_nodes.get(&id).unwrap().clone();
-                    element.add_coords(node);
+                    match ref_nodes.get(&id) {
+                        Some(node) => element.add_coords(node.clone()),
+                        None => (),
+                    };
                 }
-                _ => println!("{:?}", name),
+                _ => (),
             },
             XmlEvent::EndElement { name } => {
                 match name.local_name.as_str() {
@@ -66,20 +68,18 @@ pub fn parse(read_path: &str, write_path: &str, search_tags: &HashMap<String, Se
                                 );
                             } else {
                                 element.add_contributor(&mut contributors);
-                                let feature = element
+                                element
                                     .to_feature(search_tags, &mut feature_count)
-                                    .to_string()
-                                    + &",".to_string();
-                                writer.write(feature.as_bytes()).unwrap();
+                                    .map(|f| f.to_string() + &",".to_string())
+                                    .map(|s| writer.write(s.as_bytes()));
                             }
                         }
                         Some(ElementType::Way) => {
                             element.add_contributor(&mut contributors);
-                            let feature = element
+                            element
                                 .to_feature(search_tags, &mut feature_count)
-                                .to_string()
-                                + &",".to_string();
-                            writer.write(feature.as_bytes()).unwrap();
+                                .map(|f| f.to_string() + &",".to_string())
+                                .map(|s| writer.write(s.as_bytes()));
                         }
                         _ => continue,
                     },

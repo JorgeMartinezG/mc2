@@ -5,6 +5,7 @@ mod parser;
 mod storage;
 
 use campaign::{Campaign, CampaignRun};
+use parser::parse;
 use serde_json;
 use std::fs::create_dir;
 use std::path::PathBuf;
@@ -63,7 +64,7 @@ mod campaign_test {
                 "name": "Test Campaign",
                 "geometry_types": ["points", "polygons"],
                 "tags": {
-                    "amenity": {
+                    "building": {
                         "values": [],
                         "secondary": {
                             "name" : {
@@ -71,7 +72,6 @@ mod campaign_test {
                             } 
                         }
                     }
-
                 },
                 "geom": {
                     "type": "FeatureCollection",
@@ -115,7 +115,10 @@ mod campaign_test {
         "#;
 
         let campaign: Campaign = serde_json::from_str(campaign_str).expect("failed reading file");
-        let run = CampaignRun::new(campaign);
-        run.run();
+        parse(
+            "/Users/jorge/code/data/test.xml",
+            "res.geojson",
+            &campaign.tags,
+        );
     }
 }
