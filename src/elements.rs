@@ -54,7 +54,7 @@ fn validate_tags(
                     .filter_map(|x| x)
                     .collect();
 
-                TagErrors::new(search_tag, search_errors)
+                TagErrors::new(r.len(), search_errors)
             });
 
             let key_str = match search_tag.values.len() {
@@ -89,12 +89,7 @@ struct TagErrors {
 }
 
 impl TagErrors {
-    fn new(search_tag: &SearchTag, search_errors: Vec<String>) -> Self {
-        let len_tags = match search_tag.secondary {
-            Some(ref t) => t.len(),
-            None => panic!("Missing secondary tags"),
-        };
-
+    fn new(len_tags: usize, search_errors: Vec<String>) -> Self {
         let completeness = 1.0 - (search_errors.len() as f64 / len_tags as f64);
         TagErrors {
             errors: search_errors,
