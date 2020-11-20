@@ -31,7 +31,10 @@ fn validate_tags(
     let mut search_errors = Vec::new();
 
     tags.iter()
-        .find(|t| t.key.as_str() == search_key)
+        .find(|t| match search_tag.values.len() {
+            0 => t.key.as_str() == search_key,
+            _ => t.key.as_str() == search_key && search_tag.values.contains(&t.value),
+        })
         .map(|tag| {
             check_value(&tag.value, &search_tag.values).map(|err| search_errors.push(err));
 
@@ -53,7 +56,12 @@ fn validate_tags(
             });
 
             let tag_errors = TagErrors::new(search_tag, search_errors);
-            (search_key.to_string(), tag_errors)
+
+            let key_str = match search_tag.values.len() {
+                0 => search_key.to_string(),
+                _ => format!("{}={}", search_key, search_tag.values.join(",")),
+            };
+            (key_str, tag_errors)
         })
 }
 
