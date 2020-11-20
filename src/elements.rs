@@ -51,8 +51,9 @@ fn validate_tags(
 ) -> Option<(String, TagErrors)> {
     let mut search_errors = Vec::new();
 
-    match tags.iter().find(|t| t.key.as_str() == search_key) {
-        Some(tag) => {
+    tags.iter()
+        .find(|t| t.key.as_str() == search_key)
+        .map(|tag| {
             match check_value(&tag.value, &search_tag.values) {
                 Some(err) => search_errors.push(err),
                 None => (),
@@ -78,10 +79,8 @@ fn validate_tags(
             }
 
             let tag_errors = TagErrors::new(search_tag, search_errors);
-            Some((search_key.to_string(), tag_errors))
-        }
-        None => None,
-    }
+            (search_key.to_string(), tag_errors)
+        })
 }
 
 fn compute_errors(
