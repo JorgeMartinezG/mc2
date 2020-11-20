@@ -63,23 +63,23 @@ pub fn parse(
                         .parse::<i64>()
                         .expect("Error parsing");
 
-                    match ref_nodes.get(&id) {
-                        Some(node) => element.add_coords(node.clone()),
-                        None => (),
-                    };
+                    ref_nodes
+                        .get(&id)
+                        .map(|node| element.add_coords(node.clone()));
                 }
                 _ => (),
             },
             XmlEvent::EndElement { name } => {
                 match name.local_name.as_str() {
                     "node" | "way" => match element.element_type {
-                        Some(ElementType::Node) => {
-                            if element.tags.len() == 0 {
+                        Some(ElementType::Node) => match element.tags.len() {
+                            0 => {
                                 ref_nodes.insert(
                                     element.props.clone().unwrap().id,
                                     element.coords[0].clone(),
                                 );
-                            } else {
+                            }
+                            _ => {
                                 element
                                     .to_feature(&search_tags, &mut feature_count, geometry_types)
                                     .map(|f| {
@@ -89,7 +89,7 @@ pub fn parse(
                                         element.add_contributor(&mut contributors);
                                     });
                             }
-                        }
+                        },
                         Some(ElementType::Way) => {
                             element
                                 .to_feature(&search_tags, &mut feature_count, geometry_types)
