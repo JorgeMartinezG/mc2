@@ -10,7 +10,7 @@ use std::io::SeekFrom;
 
 use crate::campaign::SearchTag;
 
-use crate::elements::{find_attribute, ElementType, LatLng, NElement, Tag};
+use crate::elements::{find_attribute, Element, ElementType, LatLng, Tag};
 
 pub fn parse(
     read_path: &str,
@@ -29,7 +29,7 @@ pub fn parse(
 
     let mut feature_count: HashMap<String, i64> = HashMap::new();
 
-    let mut element = NElement::init();
+    let mut element = Element::init();
 
     let mut contributors: HashMap<String, i64> = HashMap::new();
 
@@ -107,7 +107,7 @@ pub fn parse(
 
                     _ => continue,
                 }
-                element = NElement::init();
+                element = Element::init();
             }
             XmlEvent::EndDocument => {
                 writer.seek(SeekFrom::End(0)).unwrap();

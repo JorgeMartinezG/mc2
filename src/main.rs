@@ -116,7 +116,7 @@ mod campaign_test {
 
         let campaign: Campaign = serde_json::from_str(campaign_str).expect("failed reading file");
         parse(
-            "/Users/jorge/code/data/barranquilla.xml",
+            "/Users/jorge/code/data/test.xml",
             "res.geojson",
             &campaign.tags,
             &campaign.geometry_types,

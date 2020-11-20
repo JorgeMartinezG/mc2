@@ -116,16 +116,16 @@ pub struct ElementProps {
 pub type LatLng = Vec<f64>;
 
 #[derive(Debug)]
-pub struct NElement {
+pub struct Element {
     pub element_type: Option<ElementType>,
     pub tags: Vec<Tag>,
     pub coords: Vec<LatLng>,
     pub props: Option<ElementProps>,
 }
 
-impl NElement {
+impl Element {
     pub fn init() -> Self {
-        NElement {
+        Element {
             element_type: None,
             tags: Vec::new(),
             coords: Vec::new(),
@@ -253,131 +253,6 @@ impl NElement {
         };
 
         Some(feat)
-    }
-}
-
-#[derive(Debug)]
-pub enum Element {
-    Initialized,
-    Node(Node),
-    Way(Way),
-}
-
-impl Element {
-    pub fn add_tag(&mut self, tag: Tag) {
-        match self {
-            Element::Node(ref mut n) => n.tags.push(tag),
-            Element::Way(ref mut w) => w.tags.push(tag),
-            _ => (),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Node {
-    pub id: i64,
-    lat: f64,
-    lon: f64,
-    pub tags: Vec<Tag>,
-}
-
-impl Node {
-    fn to_vec(&self) -> Vec<f64> {
-        vec![self.lon, self.lat]
-    }
-
-    pub fn new(attributes: &Vec<OwnedAttribute>) -> Self {
-        let lat = find_attribute("lat", &attributes)
-            .parse::<f64>()
-            .expect("Error parsing");
-        let lon = find_attribute("lon", &attributes)
-            .parse::<f64>()
-            .expect("Error parsing");
-        let id = find_attribute("id", &attributes)
-            .parse::<i64>()
-            .expect("Error parsing");
-
-        Node {
-            id: id,
-            lat: lat,
-            lon: lon,
-            tags: Vec::new(),
-        }
-    }
-
-    pub fn to_feature(
-        &self,
-        search_tags: &HashMap<String, SearchTag>,
-        feature_count: &mut HashMap<String, i64>,
-    ) -> Feature {
-        let geom = Geometry::new(Value::Point(self.to_vec()));
-        let mut properties = Map::new();
-
-        // Compute completeness for primary tag.
-        // search_tags.iter().for_each(|st| {
-        //     if st.key
-        // });
-        let errors = compute_errors(&self.tags, search_tags, feature_count);
-        properties.insert("stats".to_string(), to_value(&errors).unwrap());
-
-        Feature {
-            bbox: None,
-            geometry: Some(geom),
-            id: None,
-            properties: Some(properties),
-            foreign_members: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Way {
-    pub id: i64,
-    pub nodes: Vec<Node>,
-    pub tags: Vec<Tag>,
-}
-
-impl Way {
-    pub fn new(attributes: &Vec<OwnedAttribute>) -> Way {
-        let id = find_attribute("id", &attributes)
-            .parse::<i64>()
-            .expect("Error parsing");
-
-        Way {
-            id: id,
-            nodes: Vec::new(),
-            tags: Vec::new(),
-        }
-    }
-
-    pub fn to_feature(
-        &self,
-        search_tags: &HashMap<String, SearchTag>,
-        feature_count: &mut HashMap<String, i64>,
-    ) -> Feature {
-        let points = self
-            .nodes
-            .iter()
-            .map(|n| n.to_vec())
-            .collect::<Vec<Vec<f64>>>();
-
-        let mut geom = Geometry::new(Value::LineString(points.clone()));
-
-        if &points[0].first() == &points[0].last() {
-            geom = Geometry::new(Value::Polygon(vec![points]));
-        }
-        let mut properties = Map::new();
-
-        let errors = compute_errors(&self.tags, search_tags, feature_count);
-        properties.insert("errors".to_string(), to_value(&errors).unwrap());
-
-        Feature {
-            bbox: None,
-            geometry: Some(geom),
-            id: None,
-            properties: Some(properties),
-            foreign_members: None,
-        }
     }
 }
 
