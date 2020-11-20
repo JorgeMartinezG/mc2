@@ -183,9 +183,50 @@ impl Element {
             .expect("Error parsing");
 
         let user = find_attribute("user", &attributes);
+        self.props = Some(ElementProps { id: id, user: user });
+    }
 
-        let props = ElementProps { id: id, user: user };
-        self.props = Some(props);
+    fn create_point(&self, geometry_types: &Vec<String>) -> Option<Geometry> {
+        if geometry_types.contains(&"points".to_string()) == false {
+            return None;
+        }
+
+        let geom = Geometry::new(Value::Point(self.coords[0].clone()));
+        Some(geom)
+    }
+
+    fn create_linestring(&self, geometry_types: &Vec<String>) -> Option<Geometry> {
+        if geometry_types.contains(&"linestrings".to_string()) == false {
+            return None;
+        }
+        let geom = Geometry::new(Value::LineString(self.coords.clone()));
+        Some(geom)
+    }
+
+    fn create_polygon(&self, geometry_types: &Vec<String>) -> Option<Geometry> {
+        if geometry_types.contains(&"polygons".to_string()) == false {
+            return None;
+        }
+        let geom = Geometry::new(Value::Polygon(vec![self.coords.clone()]));
+
+        Some(geom)
+    }
+
+    fn create_geom(&self, geometry_types: &Vec<String>) -> Option<Geometry> {
+        match &self.element_type {
+            Some(ElementType::Node) => self.create_point(geometry_types),
+            Some(ElementType::Way) => {
+                if self.coords.len() == 0 {
+                    return None;
+                }
+
+                match &self.coords.first() == &self.coords.last() {
+                    false => self.create_linestring(geometry_types),
+                    true => self.create_polygon(geometry_types),
+                }
+            }
+            _ => panic!("unknown element_type"),
+        }
     }
 
     pub fn to_feature(
@@ -199,60 +240,29 @@ impl Element {
             return None;
         }
 
-        let geom = match &self.element_type {
-            Some(ElementType::Node) => {
-                if geometry_types.contains(&"points".to_string()) == false {
-                    return None;
-                }
+        let feature = self.create_geom(geometry_types).map(|geom| {
+            let mut properties = Map::new();
 
-                Geometry::new(Value::Point(self.coords[0].clone()))
+            properties.insert("stats".to_string(), to_value(&errors).unwrap());
+            properties.insert(
+                "id".to_string(),
+                to_value(self.props.as_ref().unwrap().id.clone()).unwrap(),
+            );
+            properties.insert(
+                "user".to_string(),
+                to_value(self.props.as_ref().unwrap().user.clone()).unwrap(),
+            );
+
+            Feature {
+                bbox: None,
+                geometry: Some(geom),
+                id: None,
+                properties: Some(properties),
+                foreign_members: None,
             }
-            Some(ElementType::Way) => {
-                if self.coords.len() == 0 {
-                    return None;
-                }
+        });
 
-                let geom = match &self.coords.first() == &self.coords.last() {
-                    false => {
-                        if geometry_types.contains(&"linestrings".to_string()) == false {
-                            return None;
-                        }
-                        Geometry::new(Value::LineString(self.coords.clone()))
-                    }
-                    true => {
-                        if geometry_types.contains(&"polygons".to_string()) == false {
-                            return None;
-                        }
-                        Geometry::new(Value::Polygon(vec![self.coords.clone()]))
-                    }
-                };
-
-                geom
-            }
-            _ => panic!("unknown element_type"),
-        };
-
-        let mut properties = Map::new();
-
-        properties.insert("stats".to_string(), to_value(&errors).unwrap());
-        properties.insert(
-            "id".to_string(),
-            to_value(self.props.as_ref().unwrap().id.clone()).unwrap(),
-        );
-        properties.insert(
-            "user".to_string(),
-            to_value(self.props.as_ref().unwrap().user.clone()).unwrap(),
-        );
-
-        let feat = Feature {
-            bbox: None,
-            geometry: Some(geom),
-            id: None,
-            properties: Some(properties),
-            foreign_members: None,
-        };
-
-        Some(feat)
+        feature
     }
 }
 
