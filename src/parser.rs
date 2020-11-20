@@ -72,35 +72,25 @@ pub fn parse(
                                     element.coords[0].clone(),
                                 );
                             } else {
-                                let feature = element.to_feature(
-                                    &search_tags,
-                                    &mut feature_count,
-                                    geometry_types,
-                                );
-                                match feature {
-                                    Some(f) => {
-                                        let feature_str = f.to_string() + &",".to_string();
-                                        writer.write(feature_str.as_bytes());
+                                element
+                                    .to_feature(&search_tags, &mut feature_count, geometry_types)
+                                    .map(|f| {
+                                        writer
+                                            .write((f.to_string() + &",".to_string()).as_bytes())
+                                            .expect("could not save element");
                                         element.add_contributor(&mut contributors);
-                                    }
-                                    None => (),
-                                }
+                                    });
                             }
                         }
                         Some(ElementType::Way) => {
-                            let feature = element.to_feature(
-                                &search_tags,
-                                &mut feature_count,
-                                geometry_types,
-                            );
-                            match feature {
-                                Some(f) => {
-                                    let feature_str = f.to_string() + &",".to_string();
-                                    writer.write(feature_str.as_bytes());
+                            element
+                                .to_feature(&search_tags, &mut feature_count, geometry_types)
+                                .map(|f| {
+                                    writer
+                                        .write((f.to_string() + &",".to_string()).as_bytes())
+                                        .expect("could not save element");
                                     element.add_contributor(&mut contributors);
-                                }
-                                None => (),
-                            }
+                                });
                         }
                         _ => continue,
                     },
