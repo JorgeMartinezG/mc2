@@ -65,20 +65,7 @@ mod campaign_test {
                 "geometry_types": ["points", "polygons"],
                 "tags": {
                     "building": {
-                        "values": ["yes"],
-                        "secondary": {
-                            "name" : {
-                                "values": []
-                            } 
-                        }
-                    },
-                    "amenity": {
-                        "values": [],
-                        "secondary": {
-                            "name" : {
-                                "values": []
-                            } 
-                        }
+                        "values": ["yes"]
                     }
                 },
                 "geom": {

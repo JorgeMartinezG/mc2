@@ -15,11 +15,13 @@ pub fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
 }
 
 fn check_value(tag_value: &String, values: &Vec<String>) -> Option<String> {
-    let mut error = None;
-    if values.len() != 0 && values.contains(tag_value) == false {
-        error = Some(format!("Value mismatch - expected values: {:?}", values));
+    match values.len() {
+        0 => None,
+        _ => match values.contains(tag_value) {
+            true => None,
+            false => Some(format!("Value mismatch - expected values: {:?}", values)),
+        },
     }
-    error
 }
 
 fn validate_tags(
@@ -27,9 +29,7 @@ fn validate_tags(
     search_key: &String,
     search_tag: &SearchTag,
     feature_count: &mut HashMap<String, i64>,
-) -> Option<(String, TagErrors)> {
-    let mut search_errors = Vec::new();
-
+) -> Option<(String, Option<TagErrors>)> {
     tags.iter()
         .find(|t| match search_tag.values.len() {
             0 => t.key.as_str() == search_key,
@@ -42,18 +42,20 @@ fn validate_tags(
                 feature_count.insert(tag.key.clone(), 1);
             }
 
-            search_tag.secondary.as_ref().map(|ref r| {
-                r.iter().for_each(|(sk, st)| {
-                    match tags.iter().find(|t| t.key.as_str() == sk) {
-                        Some(tag) => {
-                            check_value(&tag.value, &st.values).map(|err| search_errors.push(err));
-                        }
-                        None => search_errors.push(format!("Key {} not found", sk)),
-                    };
-                })
-            });
+            let tag_errors = search_tag.secondary.as_ref().map(|ref r| {
+                let search_errors: Vec<String> = r
+                    .iter()
+                    .map(
+                        |(sk, st)| match tags.iter().find(|t| t.key.as_str() == sk) {
+                            Some(tag) => check_value(&tag.value, &st.values),
+                            None => Some(format!("Key {} not found", sk)),
+                        },
+                    )
+                    .filter_map(|x| x)
+                    .collect();
 
-            let tag_errors = TagErrors::new(search_tag, search_errors);
+                TagErrors::new(search_tag, search_errors)
+            });
 
             let key_str = match search_tag.values.len() {
                 0 => search_key.to_string(),
@@ -67,14 +69,14 @@ fn compute_errors(
     element_tags: &Vec<Tag>,
     search_tags: &HashMap<String, SearchTag>,
     feature_count: &mut HashMap<String, i64>,
-) -> HashMap<String, TagErrors> {
+) -> HashMap<String, Option<TagErrors>> {
     let errors = search_tags
         .iter()
         .map(|(search_key, search_tag)| {
             validate_tags(&element_tags, &search_key, &search_tag, feature_count)
         })
         .filter_map(|x| x)
-        .collect::<HashMap<String, TagErrors>>();
+        .collect::<HashMap<String, Option<TagErrors>>>();
     // Check Value
 
     errors
