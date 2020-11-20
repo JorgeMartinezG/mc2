@@ -54,10 +54,7 @@ fn validate_tags(
     tags.iter()
         .find(|t| t.key.as_str() == search_key)
         .map(|tag| {
-            match check_value(&tag.value, &search_tag.values) {
-                Some(err) => search_errors.push(err),
-                None => (),
-            };
+            check_value(&tag.value, &search_tag.values).map(|err| search_errors.push(err));
 
             if let Some(v) = feature_count.get_mut(&tag.key) {
                 *v = *v + 1;
@@ -65,18 +62,16 @@ fn validate_tags(
                 feature_count.insert(tag.key.clone(), 1);
             }
 
-            match search_tag.secondary {
-                None => (),
-                Some(ref r) => r.iter().for_each(|(sk, st)| {
+            search_tag.secondary.as_ref().map(|ref r| {
+                r.iter().for_each(|(sk, st)| {
                     match tags.iter().find(|t| t.key.as_str() == sk) {
-                        Some(tag) => match check_value(&tag.value, &st.values) {
-                            Some(err) => search_errors.push(err),
-                            None => (),
-                        },
+                        Some(tag) => {
+                            check_value(&tag.value, &st.values).map(|err| search_errors.push(err));
+                        }
                         None => search_errors.push(format!("Key {} not found", sk)),
                     };
-                }),
-            }
+                })
+            });
 
             let tag_errors = TagErrors::new(search_tag, search_errors);
             (search_key.to_string(), tag_errors)
