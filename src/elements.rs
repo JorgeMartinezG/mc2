@@ -36,8 +36,6 @@ fn validate_tags(
             _ => t.key.as_str() == search_key && search_tag.values.contains(&t.value),
         })
         .map(|tag| {
-            check_value(&tag.value, &search_tag.values).map(|err| search_errors.push(err));
-
             if let Some(v) = feature_count.get_mut(&tag.key) {
                 *v = *v + 1;
             } else {
@@ -91,8 +89,8 @@ struct TagErrors {
 impl TagErrors {
     fn new(search_tag: &SearchTag, search_errors: Vec<String>) -> Self {
         let len_tags = match search_tag.secondary {
-            Some(ref t) => t.len() + 1,
-            None => 1,
+            Some(ref t) => t.len(),
+            None => panic!("Missing secondary tags"),
         };
 
         let completeness = 1.0 - (search_errors.len() as f64 / len_tags as f64);
