@@ -22,27 +22,6 @@ fn check_value(tag_value: &String, values: &Vec<String>) -> Option<String> {
     error
 }
 
-#[derive(Serialize, Debug)]
-struct TagErrors {
-    errors: Vec<String>,
-    completeness: f64,
-}
-
-impl TagErrors {
-    fn new(search_tag: &SearchTag, search_errors: Vec<String>) -> Self {
-        let len_tags = match search_tag.secondary {
-            Some(ref t) => t.len() + 1,
-            None => 1,
-        };
-
-        let completeness = 1.0 - (search_errors.len() as f64 / len_tags as f64);
-        TagErrors {
-            errors: search_errors,
-            completeness: completeness,
-        }
-    }
-}
-
 fn validate_tags(
     tags: &Vec<Tag>,
     search_key: &String,
@@ -93,6 +72,45 @@ fn compute_errors(
     // Check Value
 
     errors
+}
+
+#[derive(Serialize, Debug)]
+struct TagErrors {
+    errors: Vec<String>,
+    completeness: f64,
+}
+
+impl TagErrors {
+    fn new(search_tag: &SearchTag, search_errors: Vec<String>) -> Self {
+        let len_tags = match search_tag.secondary {
+            Some(ref t) => t.len() + 1,
+            None => 1,
+        };
+
+        let completeness = 1.0 - (search_errors.len() as f64 / len_tags as f64);
+        TagErrors {
+            errors: search_errors,
+            completeness: completeness,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Tag {
+    key: String,
+    value: String,
+}
+
+impl Tag {
+    pub fn new(attributes: &Vec<OwnedAttribute>) -> Tag {
+        let key = find_attribute("k", &attributes);
+        let value = find_attribute("v", &attributes);
+
+        Tag {
+            key: key,
+            value: value,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -257,23 +275,5 @@ impl Element {
         });
 
         feature
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Tag {
-    key: String,
-    value: String,
-}
-
-impl Tag {
-    pub fn new(attributes: &Vec<OwnedAttribute>) -> Tag {
-        let key = find_attribute("k", &attributes);
-        let value = find_attribute("v", &attributes);
-
-        Tag {
-            key: key,
-            value: value,
-        }
     }
 }
