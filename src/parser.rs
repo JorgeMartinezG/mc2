@@ -12,6 +12,14 @@ use crate::campaign::SearchTag;
 
 use crate::elements::{find_attribute, Element, ElementType, LatLng, Tag};
 
+fn serialize_hashmap(hashmap: HashMap<String, i64>) -> String {
+    hashmap
+        .into_iter()
+        .map(|(k, v)| format!(" \"{}\":{}", k, v))
+        .collect::<Vec<String>>()
+        .join(",")
+}
+
 pub fn parse(
     read_path: &str,
     write_path: &str,
@@ -104,17 +112,8 @@ pub fn parse(
                 writer.seek(SeekFrom::Current(-1)).unwrap();
                 writer.write(b"]").unwrap();
 
-                let feature_count_str = feature_count
-                    .into_iter()
-                    .map(|(k, v)| format!(" \"{}\":{}", k, v))
-                    .collect::<Vec<String>>()
-                    .join(",");
-
-                let contributors_str = contributors
-                    .into_iter()
-                    .map(|(k, v)| format!(" \"{}\":{}", k, v))
-                    .collect::<Vec<String>>()
-                    .join(",");
+                let feature_count_str = serialize_hashmap(feature_count);
+                let contributors_str = serialize_hashmap(contributors);
 
                 let features_str = format!(
                     r#","properties": {{ "feature_counts": {{ {}  }} , "contributors": {{ {} }} }} }}"#,
