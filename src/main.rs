@@ -1,10 +1,12 @@
 mod campaign;
 mod elements;
+mod notifications;
 mod overpass;
 mod parser;
 mod storage;
 
-use campaign::{Campaign, CampaignRun};
+use campaign::Campaign;
+use notifications::Notifications;
 use parser::parse;
 use serde_json;
 use std::fs::create_dir;
@@ -66,7 +68,7 @@ mod campaign_test {
                 "tags": {
                     "building": {
                         "values": ["yes"]
-                    }
+                    },
                 },
                 "geom": {
                     "type": "FeatureCollection",
@@ -109,12 +111,14 @@ mod campaign_test {
             }
         "#;
 
-        let campaign: Campaign = serde_json::from_str(campaign_str).expect("failed reading file");
-        parse(
-            "/Users/jorge/code/data/test.xml",
-            "res.geojson",
-            &campaign.tags,
-            &campaign.geometry_types,
-        );
+        let campaign: Result<Campaign, Notifications> = serde_json::from_str(campaign_str)
+            .map_err(|err| Notifications::SerdeError(err.to_string()));
+        println!("{:?}", campaign);
+        // parse(
+        //     "/Users/jorge/code/data/test.xml",
+        //     "res.geojson",
+        //     &campaign.tags,
+        //     &campaign.geometry_types,
+        // );
     }
 }
