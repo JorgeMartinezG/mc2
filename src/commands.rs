@@ -5,6 +5,20 @@ use serde_json;
 use std::fs::File;
 use uuid::Uuid;
 
+pub enum CommandResult {
+    CreateCampaign(String),
+    CreateStorage(String),
+}
+
+impl CommandResult {
+    pub fn message(&self) -> String {
+        match self {
+            CommandResult::CreateCampaign(uuid) => format!("CAMPAIGN::CREATE::OK::{}", uuid),
+            CommandResult::CreateStorage(storage) => format!("CREATE::STORAGE::OK::{}", storage),
+        }
+    }
+}
+
 fn create_uuid() -> String {
     let uuid = Uuid::new_v4();
     let mut buffer = Uuid::encode_buffer();
@@ -12,7 +26,7 @@ fn create_uuid() -> String {
     uuid
 }
 
-pub fn create_campaign(path: &str, storage: &LocalStorage) -> Result<String, Notifications> {
+pub fn create_campaign(path: &str, storage: &LocalStorage) -> Result<CommandResult, Notifications> {
     let uuid = create_uuid();
 
     let file = File::open(path)?;
@@ -25,5 +39,5 @@ pub fn create_campaign(path: &str, storage: &LocalStorage) -> Result<String, Not
 
     storage.save_campaign(campaign)?;
 
-    Ok(uuid)
+    Ok(CommandResult::CreateCampaign(uuid))
 }

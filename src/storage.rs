@@ -1,5 +1,7 @@
 use crate::campaign::Campaign;
+use crate::commands::CommandResult;
 use crate::notifications::Notifications;
+use log::{info, warn};
 use serde_json::to_string;
 use std::fs::create_dir;
 use std::fs::File;
@@ -13,8 +15,11 @@ pub struct LocalStorage {
 impl LocalStorage {
     pub fn new(storage: &PathBuf) -> Self {
         match create_dir(storage) {
-            Ok(()) => println!("Storage directory created successfully"),
-            Err(_e) => println!("Storage directory already exists"),
+            Ok(()) => info!(
+                "{}",
+                CommandResult::CreateStorage(storage.display().to_string()).message()
+            ),
+            Err(e) => warn!("{}", e.to_string()),
         };
 
         LocalStorage {
