@@ -23,8 +23,10 @@ impl de::Error for Notifications {
 impl Display for Notifications {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Notifications::SerdeError(msg) => formatter.write_str(msg),
-            Notifications::IOError(msg) => formatter.write_str(msg),
+            Notifications::SerdeError(msg) => {
+                formatter.write_str(format!("SERDE::{}", msg).as_str())
+            }
+            Notifications::IOError(msg) => formatter.write_str(format!("IO::{}", msg).as_str()),
         }
     }
 }

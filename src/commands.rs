@@ -14,7 +14,7 @@ impl CommandResult {
     pub fn message(&self) -> String {
         match self {
             CommandResult::CreateCampaign(uuid) => format!("CAMPAIGN::CREATE::OK::{}", uuid),
-            CommandResult::CreateStorage(storage) => format!("CREATE::STORAGE::OK::{}", storage),
+            CommandResult::CreateStorage(storage) => format!("STORAGE::CREATE::OK::{}", storage),
         }
     }
 }

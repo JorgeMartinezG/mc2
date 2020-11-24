@@ -19,7 +19,7 @@ impl LocalStorage {
                 "{}",
                 CommandResult::CreateStorage(storage.display().to_string()).message()
             ),
-            Err(e) => warn!("{}", e.to_string()),
+            Err(_e) => warn!("STORAGE {} EXISTS", storage.display().to_string()),
         };
 
         LocalStorage {
