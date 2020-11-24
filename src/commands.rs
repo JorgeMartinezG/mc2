@@ -1,6 +1,7 @@
 use crate::campaign::{Campaign, CampaignRun};
 use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use serde_json;
 use std::fs::File;
 use uuid::Uuid;
@@ -9,6 +10,7 @@ pub enum CommandResult {
     GetCampaign(String),
     CreateCampaign(String),
     CreateStorage(String),
+    Serve,
 }
 
 impl CommandResult {
@@ -17,6 +19,7 @@ impl CommandResult {
             CommandResult::CreateCampaign(uuid) => format!("CAMPAIGN::CREATE::OK::{}", uuid),
             CommandResult::GetCampaign(uuid) => format!("CAMPAIGN::GET::OK::{}", uuid),
             CommandResult::CreateStorage(storage) => format!("STORAGE::CREATE::OK::{}", storage),
+            CommandResult::Serve => format!("SERVER::OK"),
         }
     }
 }
@@ -51,4 +54,21 @@ pub fn create_campaign(path: &str, storage: LocalStorage) -> Result<CommandResul
     storage.save_campaign(campaign)?;
 
     Ok(CommandResult::CreateCampaign(uuid))
+}
+
+#[get("/")]
+async fn hello() -> impl Responder {
+    HttpResponse::Ok().body("Hello world!")
+}
+
+#[actix_web::main]
+pub async fn serve() -> Result<CommandResult, Notifications> {
+    let server = HttpServer::new(|| App::new().service(hello)).bind("127.0.0.1:8080");
+
+    match server {
+        Ok(r) => r.run().await?,
+        Err(e) => panic!("{:?}", e),
+    }
+
+    Ok(CommandResult::Serve)
 }

@@ -7,12 +7,12 @@ mod parser;
 mod storage;
 
 use campaign::Campaign;
-use commands::{create_campaign, load_campaign, CommandResult};
+use commands::{create_campaign, load_campaign, serve, CommandResult};
 use log::{error, info};
 use notifications::Notifications;
-use parser::parse;
+
 use serde_json;
-use std::fs::create_dir;
+
 use std::path::PathBuf;
 use storage::LocalStorage;
 use structopt::StructOpt;
@@ -46,6 +46,9 @@ enum Command {
     /// Create a campaign
     #[structopt()]
     CreateCampaign { json_path: String },
+
+    #[structopt()]
+    Serve,
 }
 
 fn main() {
@@ -57,6 +60,7 @@ fn main() {
     let result = match opt.command {
         Command::CreateCampaign { ref json_path } => create_campaign(json_path, storage),
         Command::Run { ref uuid } => load_campaign(uuid, storage),
+        Command::Serve => serve(),
         _ => Ok(CommandResult::CreateCampaign("aaa".to_string())),
     };
 
