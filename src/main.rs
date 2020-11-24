@@ -7,7 +7,7 @@ mod parser;
 mod storage;
 
 use campaign::Campaign;
-use commands::{create_campaign, CommandResult};
+use commands::{create_campaign, load_campaign, CommandResult};
 use log::{error, info};
 use notifications::Notifications;
 use parser::parse;
@@ -55,7 +55,8 @@ fn main() {
     let storage = LocalStorage::new(&opt.storage);
 
     let result = match opt.command {
-        Command::CreateCampaign { ref json_path } => create_campaign(json_path, &storage),
+        Command::CreateCampaign { ref json_path } => create_campaign(json_path, storage),
+        Command::Run { ref uuid } => load_campaign(uuid, storage),
         _ => Ok(CommandResult::CreateCampaign("aaa".to_string())),
     };
 

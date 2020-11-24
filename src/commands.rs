@@ -1,4 +1,4 @@
-use crate::campaign::Campaign;
+use crate::campaign::{Campaign, CampaignRun};
 use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
 use serde_json;
@@ -6,6 +6,7 @@ use std::fs::File;
 use uuid::Uuid;
 
 pub enum CommandResult {
+    GetCampaign(String),
     CreateCampaign(String),
     CreateStorage(String),
 }
@@ -14,9 +15,19 @@ impl CommandResult {
     pub fn message(&self) -> String {
         match self {
             CommandResult::CreateCampaign(uuid) => format!("CAMPAIGN::CREATE::OK::{}", uuid),
+            CommandResult::GetCampaign(uuid) => format!("CAMPAIGN::GET::OK::{}", uuid),
             CommandResult::CreateStorage(storage) => format!("STORAGE::CREATE::OK::{}", storage),
         }
     }
+}
+
+pub fn load_campaign(uuid: &str, storage: LocalStorage) -> Result<CommandResult, Notifications> {
+    let campaign = storage.load_campaign(uuid)?;
+
+    let run = CampaignRun::new(campaign, storage);
+    run.run();
+
+    Ok(CommandResult::GetCampaign(uuid.to_string()))
 }
 
 fn create_uuid() -> String {
@@ -26,7 +37,7 @@ fn create_uuid() -> String {
     uuid
 }
 
-pub fn create_campaign(path: &str, storage: &LocalStorage) -> Result<CommandResult, Notifications> {
+pub fn create_campaign(path: &str, storage: LocalStorage) -> Result<CommandResult, Notifications> {
     let uuid = create_uuid();
 
     let file = File::open(path)?;
