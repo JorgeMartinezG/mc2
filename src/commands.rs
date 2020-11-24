@@ -1,9 +1,7 @@
 use crate::campaign::{Campaign, CampaignRun};
 use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
-use actix_web::middleware::Logger;
-use actix_web::{get, App, HttpResponse, HttpServer, Responder};
-use log::info;
+
 use serde_json;
 use std::fs::File;
 use uuid::Uuid;
@@ -56,28 +54,4 @@ pub fn create_campaign(path: &str, storage: LocalStorage) -> Result<CommandResul
     storage.save_campaign(campaign)?;
 
     Ok(CommandResult::CreateCampaign(uuid))
-}
-
-#[get("/")]
-async fn hello() -> impl Responder {
-    info!("AAAA");
-    HttpResponse::Ok().body("Hello world!")
-}
-
-#[actix_web::main]
-pub async fn serve() -> Result<CommandResult, Notifications> {
-    let server = HttpServer::new(|| {
-        App::new()
-            .wrap(Logger::default())
-            .wrap(Logger::new("%a %{User-Agent}i"))
-            .service(hello)
-    })
-    .bind("127.0.0.1:8080");
-
-    match server {
-        Ok(r) => r.run().await?,
-        Err(e) => panic!("{:?}", e),
-    }
-
-    Ok(CommandResult::Serve)
 }

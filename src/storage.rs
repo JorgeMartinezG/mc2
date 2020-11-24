@@ -8,6 +8,7 @@ use std::fs::{read_to_string, File};
 use std::io::Write;
 use std::path::PathBuf;
 
+#[derive(Clone)]
 pub struct LocalStorage {
     pub path: PathBuf,
 }

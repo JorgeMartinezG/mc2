@@ -1,3 +1,4 @@
+use actix_web::error;
 use serde::de;
 use std::fmt::{self, Display};
 use std::io;
@@ -32,3 +33,4 @@ impl Display for Notifications {
 }
 
 impl std::error::Error for Notifications {}
+impl error::ResponseError for Notifications {}
