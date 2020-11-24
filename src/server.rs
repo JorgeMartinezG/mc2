@@ -6,6 +6,8 @@ use crate::storage::LocalStorage;
 use actix_web::middleware::Logger;
 use actix_web::{get, web, App, HttpServer};
 
+use geojson;
+
 #[derive(Clone)]
 struct AppState {
     storage: LocalStorage,
@@ -17,13 +19,15 @@ async fn list_campaigns(data: web::Data<AppState>) -> Result<String, Notificatio
 
     let campaigns = std::fs::read_dir(&storage.path)?
         .map(|c| {
-            let file = c.unwrap().path().join("campaign.json");
+            let file = c.unwrap().path().join("output.json");
             let file = std::fs::File::open(file).unwrap();
-            let campaign: Campaign = serde_json::from_reader(file).unwrap();
+            let campaign: geojson::FeatureCollection = serde_json::from_reader(file).unwrap();
+
+            println!("{:?}", campaign.foreign_members);
 
             campaign
         })
-        .collect::<Vec<Campaign>>();
+        .collect::<Vec<geojson::FeatureCollection>>();
 
     Ok(serde_json::to_string(&campaigns).unwrap())
 }
