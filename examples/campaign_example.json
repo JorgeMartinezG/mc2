@@ -1,15 +1,10 @@
 {
 	"name": "Test Campaign",
-	"geometry_types": ["point", "polygon"],
+	"geometry_types": ["points", "polygons"],
 	"tags": {
-		"primary": [{
-			"key": "buildings",
-			"values": []
-		}],
-		"secondary": [{
-			"key": "amenity",
-			"values": ["hospital", "pharmacy"]
-		}]
+		"building": {
+			"values": ["yes"]
+		}
 	},
 	"geom": {
 		"type": "FeatureCollection",

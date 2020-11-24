@@ -1,6 +1,5 @@
 use geojson::GeoJson;
-use serde::Deserialize;
-use std::fs::create_dir;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::parser::parse;
@@ -10,15 +9,16 @@ use crate::storage::LocalStorage;
 
 use std::collections::HashMap;
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Campaign {
     pub name: String,
     pub geometry_types: Vec<String>,
     pub tags: HashMap<String, SearchTag>,
     pub geom: GeoJson,
+    pub uuid: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SearchTag {
     pub values: Vec<String>,
     pub secondary: Option<HashMap<String, SearchTag>>,
@@ -32,13 +32,7 @@ pub struct CampaignRun {
 }
 
 impl CampaignRun {
-    pub fn new(campaign: Campaign) -> Self {
-        let uuid = Uuid::new_v4();
-        let mut buffer = Uuid::encode_buffer();
-        let uuid = uuid.to_simple().encode_lower(&mut buffer).to_owned();
-
-        let storage = LocalStorage::new(&uuid);
-
+    pub fn new(campaign: Campaign, storage: LocalStorage) -> Self {
         CampaignRun {
             source: Overpass::new(campaign.clone()),
             storage: storage,
@@ -48,10 +42,6 @@ impl CampaignRun {
     }
 
     pub fn run(&self) {
-        if self.storage.path.exists() == false {
-            create_dir(&self.storage.path).unwrap();
-        }
-
         let xml_path = self.storage.overpass();
         let json_path = self.storage.json();
 

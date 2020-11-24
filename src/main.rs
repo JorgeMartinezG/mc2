@@ -1,4 +1,5 @@
 mod campaign;
+mod commands;
 mod elements;
 mod notifications;
 mod overpass;
@@ -6,11 +7,13 @@ mod parser;
 mod storage;
 
 use campaign::Campaign;
+use commands::create_campaign;
 use notifications::Notifications;
 use parser::parse;
 use serde_json;
 use std::fs::create_dir;
 use std::path::PathBuf;
+use storage::LocalStorage;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -47,13 +50,15 @@ enum Command {
 fn main() {
     let opt = Opts::from_args();
 
+    let storage = LocalStorage::new(&opt.storage);
+
     match opt.command {
-        Command::CreateCampaign { ref json_path } => println!("{:?}", json_path),
+        Command::CreateCampaign { ref json_path } => {
+            create_campaign(json_path, &storage);
+        }
         Command::Run { ref uuid } => println!("{:?}", uuid),
         Command::CreateStore => println!("AAA"),
     }
-
-    println!("{:?}", opt);
 }
 
 #[cfg(test)]
