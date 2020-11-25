@@ -1,11 +1,9 @@
-use crate::campaign::Campaign;
 use crate::commands::CommandResult;
 use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
 
 use actix_web::middleware::Logger;
-use actix_web::{get, web, App, HttpServer};
-
+use actix_web::{dev::Payload, get, web, App, Error, FromRequest, HttpRequest, HttpServer};
 use geojson;
 
 #[derive(Clone)]
@@ -13,8 +11,27 @@ struct AppState {
     storage: LocalStorage,
 }
 
+struct User {
+    token: String,
+}
+
+impl FromRequest for User {
+    type Config = ();
+    type Error = Error;
+    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<User, Error>>>>;
+
+    fn from_request(req: &HttpRequest, pl: &mut Payload) -> Self::Future {
+        println!("{:?}", req);
+        let value = "AAAA".to_string();
+        Box::pin(async move {
+            let user = User { token: value };
+            Ok(user)
+        })
+    }
+}
+
 #[get("/campaigns")]
-async fn list_campaigns(data: web::Data<AppState>) -> Result<String, Notifications> {
+async fn list_campaigns(user: User, data: web::Data<AppState>) -> Result<String, Notifications> {
     let storage = &data.storage;
 
     let campaigns = std::fs::read_dir(&storage.path)?
@@ -28,7 +45,7 @@ async fn list_campaigns(data: web::Data<AppState>) -> Result<String, Notificatio
             campaign
         })
         .collect::<Vec<geojson::FeatureCollection>>();
-
+    println!("{}", user.token);
     Ok(serde_json::to_string(&campaigns).unwrap())
 }
 
