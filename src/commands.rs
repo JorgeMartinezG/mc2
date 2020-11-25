@@ -35,7 +35,7 @@ pub fn load_campaign(uuid: &str, storage: LocalStorage) -> Result<CommandResult,
     Ok(CommandResult::GetCampaign(uuid.to_string()))
 }
 
-fn create_uuid() -> String {
+pub fn create_uuid() -> String {
     let uuid = Uuid::new_v4();
     let mut buffer = Uuid::encode_buffer();
     let uuid = uuid.to_simple().encode_lower(&mut buffer).to_owned();

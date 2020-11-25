@@ -10,6 +10,8 @@ use std::collections::HashMap;
 
 use chrono::prelude::{DateTime, Utc};
 
+use uuid::Uuid;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Campaign {
     pub name: String,
@@ -18,6 +20,27 @@ pub struct Campaign {
     pub geom: GeoJson,
     pub uuid: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
+}
+
+impl Campaign {
+    pub fn set_uuid(self) -> Self {
+        let uuid = Uuid::new_v4();
+        let mut buffer = Uuid::encode_buffer();
+        let uuid = uuid.to_simple().encode_lower(&mut buffer).to_owned();
+
+        Campaign {
+            uuid: Some(uuid),
+            ..self
+        }
+    }
+
+    pub fn set_created_date(self) -> Self {
+        let utc: DateTime<Utc> = Utc::now();
+        Campaign {
+            created_at: Some(utc),
+            ..self
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

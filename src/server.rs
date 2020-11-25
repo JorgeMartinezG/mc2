@@ -1,22 +1,40 @@
+use crate::campaign::Campaign;
 use crate::commands::CommandResult;
 use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
 
 use actix_web::middleware::Logger;
 use actix_web::{
-    dev::Payload, error::ErrorUnauthorized, get, web, App, Error, FromRequest, HttpRequest,
-    HttpServer,
+    dev::Payload, error::ErrorUnauthorized, get, post, web, App, Error, FromRequest, HttpRequest,
+    HttpResponse, HttpServer, Responder,
 };
 use geojson;
 
 use base64::{decode, encode};
 use itsdangerous::{default_builder, Signer};
 
+use actix::prelude::{Actor, Addr, Handler, Message, SyncArbiter, SyncContext};
+use serde_json::{to_value, Map};
+
 const SECRET_KEY: &str = "pleasechangeme1234";
 
-#[derive(Clone)]
-struct AppState {
-    storage: LocalStorage,
+struct McActor {}
+
+impl Actor for McActor {
+    type Context = SyncContext<Self>;
+}
+
+#[derive(Message, Debug)]
+#[rtype(result = "bool")]
+struct McMessage {}
+
+impl Handler<McMessage> for McActor {
+    type Result = bool;
+
+    fn handle(&mut self, msg: McMessage, _ctx: &mut SyncContext<Self>) -> Self::Result {
+        println!("{:?}", msg);
+        true
+    }
 }
 
 struct User {
@@ -64,15 +82,38 @@ async fn get_token() -> String {
     token
 }
 
+#[post("/campaign")]
+async fn create_campaign(campaign: web::Json<Campaign>, data: web::Data<AppState>) -> HttpResponse {
+    let campaign = campaign.into_inner().set_created_date().set_uuid();
+
+    let uuid = campaign.uuid.clone().unwrap();
+
+    match data.storage.save_campaign(campaign) {
+        Ok(()) => {
+            let mut response = Map::new();
+            response.insert("uuid".to_string(), to_value(&uuid).unwrap());
+            HttpResponse::Ok()
+                .content_type("application/json")
+                .json(response)
+        }
+        Err(_e) => HttpResponse::InternalServerError()
+            .content_type("plain/text")
+            .body("Could not create campaign"),
+    }
+}
+
 #[get("/campaigns")]
 async fn list_campaigns(user: User, data: web::Data<AppState>) -> Result<String, Notifications> {
     println!("{}", user.token);
+
+    let ref addr = data.addr;
+    addr.send(McMessage {}).await.unwrap();
 
     let storage = &data.storage;
 
     let campaigns = std::fs::read_dir(&storage.path)?
         .map(|c| {
-            let file = c.unwrap().path().join("output.json");
+            let file = c.unwrap().path().join("campaign.json");
             let file = std::fs::File::open(file).unwrap();
             let campaign: geojson::FeatureCollection = serde_json::from_reader(file).unwrap();
 
@@ -85,15 +126,23 @@ async fn list_campaigns(user: User, data: web::Data<AppState>) -> Result<String,
     Ok(serde_json::to_string(&campaigns).unwrap())
 }
 
+#[derive(Clone)]
+struct AppState {
+    storage: LocalStorage,
+    addr: Addr<McActor>,
+}
+
 #[actix_web::main]
 pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications> {
     let server = HttpServer::new(move || {
         App::new()
             .data(AppState {
                 storage: storage.clone(),
+                addr: SyncArbiter::start(10, || McActor {}),
             })
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
+            .service(create_campaign)
             .service(list_campaigns)
             .service(get_token)
     })
