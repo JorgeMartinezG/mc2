@@ -8,6 +8,8 @@ use crate::storage::LocalStorage;
 
 use std::collections::HashMap;
 
+use chrono::prelude::{DateTime, Utc};
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Campaign {
     pub name: String,
@@ -15,6 +17,7 @@ pub struct Campaign {
     pub tags: HashMap<String, SearchTag>,
     pub geom: GeoJson,
     pub uuid: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

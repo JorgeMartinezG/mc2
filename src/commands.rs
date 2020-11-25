@@ -6,6 +6,8 @@ use serde_json;
 use std::fs::File;
 use uuid::Uuid;
 
+use chrono::prelude::{DateTime, Utc};
+
 pub enum CommandResult {
     GetCampaign(String),
     CreateCampaign(String),
@@ -49,7 +51,9 @@ pub fn create_campaign(path: &str, storage: LocalStorage) -> Result<CommandResul
 
     let mut campaign = campaign?;
 
+    let utc: DateTime<Utc> = Utc::now();
     campaign.uuid = Some(uuid.clone());
+    campaign.created_at = Some(utc);
 
     storage.save_campaign(campaign)?;
 
