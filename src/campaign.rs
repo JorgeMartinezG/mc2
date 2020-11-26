@@ -1,4 +1,6 @@
-use geojson::GeoJson;
+use geo::algorithm::centroid::Centroid;
+
+use geo_types::{Geometry, GeometryCollection, MultiPoint, Point};
 use serde::{Deserialize, Serialize};
 
 use crate::parser::parse;
@@ -17,7 +19,7 @@ pub struct Campaign {
     pub name: String,
     pub geometry_types: Vec<String>,
     pub tags: HashMap<String, SearchTag>,
-    pub geom: GeoJson,
+    pub geom: geojson::GeoJson,
     pub uuid: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
 }
@@ -40,6 +42,25 @@ impl Campaign {
             created_at: Some(utc),
             ..self
         }
+    }
+
+    pub fn centroid_as_geom(self) -> Self {
+        let collection: GeometryCollection<f64> = geojson::quick_collection(&self.geom).unwrap();
+
+        let centroids: MultiPoint<f64> = collection
+            .iter()
+            .map(|f| match f {
+                Geometry::Polygon(p) => p.centroid().unwrap(),
+                _ => panic!("Geom not supported"),
+            })
+            .collect();
+
+        let point = Point::from(centroids.centroid().unwrap());
+        let geometry = geojson::Geometry::new(geojson::Value::from(&point));
+
+        let geom = geojson::GeoJson::from(geometry);
+
+        Campaign { geom: geom, ..self }
     }
 }
 

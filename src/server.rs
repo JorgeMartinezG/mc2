@@ -6,15 +6,14 @@ use crate::storage::LocalStorage;
 
 use actix_web::middleware::Logger;
 use actix_web::{
-    dev::Payload, error::ErrorUnauthorized, get, post, web, App, Error, FromRequest, HttpRequest,
-    HttpResponse, HttpServer, Responder,
+    dev::Payload, get, post, web, App, Error, FromRequest, HttpRequest, HttpResponse, HttpServer,
 };
-use geojson;
 
 use base64::{decode, encode};
 use itsdangerous::{default_builder, Signer};
 
 use actix::prelude::{Actor, Addr, Handler, Message, SyncArbiter, SyncContext};
+
 use serde_json::{to_value, Map};
 
 const SECRET_KEY: &str = "pleasechangeme1234";
@@ -118,25 +117,19 @@ async fn get_campaign(
 }
 
 #[get("/campaigns")]
-async fn list_campaigns(user: User, data: web::Data<AppState>) -> Result<String, Notifications> {
-    println!("{}", user.token);
-
-    let ref addr = data.addr;
-    addr.send(McMessage {}).await.unwrap();
-
+async fn list_campaigns(data: web::Data<AppState>) -> Result<String, Notifications> {
     let storage = &data.storage;
 
     let campaigns = std::fs::read_dir(&storage.path)?
         .map(|c| {
             let file = c.unwrap().path().join("campaign.json");
             let file = std::fs::File::open(file).unwrap();
-            let campaign: geojson::FeatureCollection = serde_json::from_reader(file).unwrap();
+            let campaign: Campaign = serde_json::from_reader(file).unwrap();
 
-            println!("{:?}", campaign.foreign_members);
-
+            let campaign = campaign.centroid_as_geom();
             campaign
         })
-        .collect::<Vec<geojson::FeatureCollection>>();
+        .collect::<Vec<Campaign>>();
 
     Ok(serde_json::to_string(&campaigns).unwrap())
 }
