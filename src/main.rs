@@ -1,6 +1,7 @@
 mod campaign;
 mod commands;
 mod elements;
+mod errors;
 mod notifications;
 mod overpass;
 mod parser;

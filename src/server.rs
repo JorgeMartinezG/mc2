@@ -1,5 +1,6 @@
 use crate::campaign::Campaign;
 use crate::commands::CommandResult;
+use crate::errors::AppError;
 use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
 
@@ -102,6 +103,20 @@ async fn create_campaign(campaign: web::Json<Campaign>, data: web::Data<AppState
     }
 }
 
+#[get("/campaign/{uuid}")]
+async fn get_campaign(
+    web::Path(uuid): web::Path<String>,
+    data: web::Data<AppState>,
+) -> Result<String, AppError> {
+    let storage = &data.storage;
+
+    let path = storage.path.join(uuid).join("campaign.json");
+    println!("{:?}", path);
+    let contents = std::fs::read_to_string(path)?;
+
+    Ok(contents)
+}
+
 #[get("/campaigns")]
 async fn list_campaigns(user: User, data: web::Data<AppState>) -> Result<String, Notifications> {
     println!("{}", user.token);
@@ -143,6 +158,7 @@ pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .service(create_campaign)
+            .service(get_campaign)
             .service(list_campaigns)
             .service(get_token)
     })
