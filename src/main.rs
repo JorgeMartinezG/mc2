@@ -90,8 +90,13 @@ mod campaign_test {
                         "secondary": {
                             "name": {
                                 "values": []
-                            },
-                            "building": {
+                            }
+                        }
+                    },
+                    "highway": {
+                        "values": [],
+                        "secondary": {
+                            "name": {
                                 "values": []
                             }
                         }

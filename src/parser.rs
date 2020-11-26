@@ -41,6 +41,8 @@ pub fn parse(
 
     let mut contributors: HashMap<String, i64> = HashMap::new();
 
+    let mut attributes_count: HashMap<String, i64> = HashMap::new();
+
     writer
         .write(r#"{"type": "FeatureCollection","features": ["#.as_bytes())
         .unwrap();
@@ -81,7 +83,12 @@ pub fn parse(
                             }
                             _ => {
                                 element
-                                    .to_feature(&search_tags, &mut feature_count, geometry_types)
+                                    .to_feature(
+                                        &search_tags,
+                                        &mut feature_count,
+                                        geometry_types,
+                                        &mut attributes_count,
+                                    )
                                     .map(|f| {
                                         writer
                                             .write((f.to_string() + &",".to_string()).as_bytes())
@@ -92,7 +99,12 @@ pub fn parse(
                         },
                         Some(ElementType::Way) => {
                             element
-                                .to_feature(&search_tags, &mut feature_count, geometry_types)
+                                .to_feature(
+                                    &search_tags,
+                                    &mut feature_count,
+                                    geometry_types,
+                                    &mut attributes_count,
+                                )
                                 .map(|f| {
                                     writer
                                         .write((f.to_string() + &",".to_string()).as_bytes())
@@ -114,10 +126,11 @@ pub fn parse(
 
                 let feature_count_str = serialize_hashmap(feature_count);
                 let contributors_str = serialize_hashmap(contributors);
+                let attributes_count_str = serialize_hashmap(attributes_count);
 
                 let features_str = format!(
-                    r#","properties": {{ "feature_counts": {{ {}  }} , "contributors": {{ {} }} }} }}"#,
-                    feature_count_str, contributors_str
+                    r#","properties": {{ "feature_counts": {{ {} }} , "contributors": {{ {} }}, "attributes_count": {{ {} }} }} }}"#,
+                    feature_count_str, contributors_str, attributes_count_str
                 );
 
                 writer.write(features_str.as_bytes()).unwrap();

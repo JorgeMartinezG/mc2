@@ -272,11 +272,24 @@ impl Element {
         search_tags: &HashMap<String, SearchTag>,
         feature_count: &mut HashMap<String, i64>,
         geometry_types: &Vec<String>,
+        attributes_count: &mut HashMap<String, i64>,
     ) -> Option<Feature> {
         let errors = compute_errors(&self.tags, search_tags, feature_count);
         if errors.len() == 0 {
             return None;
         }
+
+        errors.iter().for_each(|(_k, v)| {
+            v.as_ref().map(|tag_error| {
+                tag_error.oks.iter().for_each(|ok| {
+                    if let Some(v) = attributes_count.get_mut(ok) {
+                        *v = *v + 1;
+                    } else {
+                        attributes_count.insert(ok.clone(), 1);
+                    }
+                })
+            });
+        });
 
         let feature = self.create_geom(geometry_types).map(|geom| {
             let mut properties = Map::new();
