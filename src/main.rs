@@ -20,6 +20,8 @@ use std::path::PathBuf;
 use storage::LocalStorage;
 use structopt::StructOpt;
 
+use parser::parse;
+
 #[derive(Debug, StructOpt)]
 #[structopt(name = "mc2", about = "Command line for MapCampaigner v2")]
 struct Opts {
@@ -84,8 +86,16 @@ mod campaign_test {
                 "geometry_types": ["points", "polygons"],
                 "tags": {
                     "building": {
-                        "values": ["yes"]
-                    },
+                        "values": ["yes"],
+                        "secondary": {
+                            "name": {
+                                "values": []
+                            },
+                            "building": {
+                                "values": []
+                            }
+                        }
+                    }
                 },
                 "geom": {
                     "type": "FeatureCollection",
@@ -130,12 +140,14 @@ mod campaign_test {
 
         let campaign: Result<Campaign, Notifications> = serde_json::from_str(campaign_str)
             .map_err(|err| Notifications::SerdeError(err.to_string()));
-        println!("{:?}", campaign);
-        // parse(
-        //     "/Users/jorge/code/data/test.xml",
-        //     "res.geojson",
-        //     &campaign.tags,
-        //     &campaign.geometry_types,
-        // );
+        //println!("{:?}", campaign);
+
+        let campaign = campaign.unwrap();
+        parse(
+            "/Users/jorge/code/data/test.xml",
+            "res.geojson",
+            &campaign.tags,
+            &campaign.geometry_types,
+        );
     }
 }

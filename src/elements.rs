@@ -14,12 +14,22 @@ pub fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
     attr
 }
 
-fn check_value(tag_value: &String, values: &Vec<String>) -> Option<String> {
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum TagError {
+    KeyNotFound(String),
+    ValueNotFound(String),
+}
+
+fn check_value(tag_value: &String, values: &Vec<String>, key: &String) -> Result<String, TagError> {
+    let key = key.to_string();
+    let values_str = format!("{}={}", key, values.join(","));
+
     match values.len() {
-        0 => None,
+        0 => Ok(key),
         _ => match values.contains(tag_value) {
-            true => None,
-            false => Some(format!("Value mismatch - expected values: {:?}", values)),
+            true => Ok(values_str),
+            false => Err(TagError::ValueNotFound(values_str)),
         },
     }
 }
@@ -43,18 +53,29 @@ fn validate_tags(
             }
 
             let tag_errors = search_tag.secondary.as_ref().map(|ref r| {
-                let search_errors: Vec<String> = r
+                let results = r
                     .iter()
                     .map(
                         |(sk, st)| match tags.iter().find(|t| t.key.as_str() == sk) {
-                            Some(tag) => check_value(&tag.value, &st.values),
-                            None => Some(format!("Key {} not found", sk)),
+                            Some(tag) => check_value(&tag.value, &st.values, &sk),
+                            None => Err(TagError::KeyNotFound(sk.clone())),
                         },
                     )
-                    .filter_map(|x| x)
-                    .collect();
+                    .collect::<Vec<Result<String, TagError>>>();
 
-                TagErrors::new(r.len(), search_errors)
+                let oks = results
+                    .iter()
+                    .filter(|r| r.is_ok())
+                    .map(|r| r.clone().unwrap())
+                    .collect::<Vec<String>>();
+
+                let errors = results
+                    .iter()
+                    .filter(|r| r.is_err())
+                    .map(|r| r.clone().unwrap_err())
+                    .collect::<Vec<TagError>>();
+
+                TagErrors::new(r.len(), oks, errors)
             });
 
             let key_str = match search_tag.values.len() {
@@ -84,15 +105,17 @@ fn compute_errors(
 
 #[derive(Serialize, Debug)]
 struct TagErrors {
-    errors: Vec<String>,
+    oks: Vec<String>,
+    errors: Vec<TagError>,
     completeness: f64,
 }
 
 impl TagErrors {
-    fn new(len_tags: usize, search_errors: Vec<String>) -> Self {
-        let completeness = 1.0 - (search_errors.len() as f64 / len_tags as f64);
+    fn new(len_tags: usize, oks: Vec<String>, errors: Vec<TagError>) -> Self {
+        let completeness = 1.0 - (errors.len() as f64 / len_tags as f64);
         TagErrors {
-            errors: search_errors,
+            oks: oks,
+            errors: errors,
             completeness: completeness,
         }
     }
