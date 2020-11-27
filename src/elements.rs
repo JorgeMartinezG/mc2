@@ -273,13 +273,14 @@ impl Element {
         feature_count: &mut HashMap<String, i64>,
         geometry_types: &Vec<String>,
         attributes_count: &mut HashMap<String, i64>,
+        completeness_count: &mut HashMap<String, HashMap<String, i64>>,
     ) -> Option<Feature> {
         let errors = compute_errors(&self.tags, search_tags, feature_count);
         if errors.len() == 0 {
             return None;
         }
 
-        errors.iter().for_each(|(_k, v)| {
+        errors.iter().for_each(|(k, v)| {
             v.as_ref().map(|tag_error| {
                 tag_error.oks.iter().for_each(|ok| {
                     if let Some(v) = attributes_count.get_mut(ok) {
@@ -287,7 +288,21 @@ impl Element {
                     } else {
                         attributes_count.insert(ok.clone(), 1);
                     }
-                })
+                });
+
+                if let Some(key) = completeness_count.get_mut(k) {
+                    let mut field = "complete";
+
+                    if tag_error.completeness < 1.0 {
+                        field = "incomplete";
+                    };
+
+                    if let Some(v) = key.get_mut(&field.to_string()) {
+                        *v = *v + 1;
+                    } else {
+                        key.insert(field.to_string(), 1);
+                    }
+                }
             });
         });
 

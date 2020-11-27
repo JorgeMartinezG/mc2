@@ -35,13 +35,51 @@ pub fn parse(
 
     let mut parser = EventReader::new(file);
 
-    let mut feature_count: HashMap<String, i64> = HashMap::new();
+    let mut feature_count = search_tags.iter().map(|(k, _v)| (k.clone(), 0)).collect();
+
+    let mut completeness_count: HashMap<String, HashMap<String, i64>> = search_tags
+        .iter()
+        .map(|(k, v)| {
+            let key_str = match v.values.len() {
+                0 => k.to_string(),
+                _ => format!("{}={}", k, v.values.join(",")),
+            };
+
+            let mut hm = HashMap::new();
+            hm.insert("complete".to_string(), 0);
+            hm.insert("incomplete".to_string(), 0);
+
+            (key_str, hm)
+        })
+        .collect();
 
     let mut element = Element::init();
 
     let mut contributors: HashMap<String, i64> = HashMap::new();
 
-    let mut attributes_count: HashMap<String, i64> = HashMap::new();
+    let mut attributes_count = search_tags
+        .iter()
+        .map(|(_k, v)| match v.secondary {
+            None => None,
+            Some(ref s) => {
+                let init_values = s
+                    .iter()
+                    .map(|(sk, sv)| {
+                        let key = match sv.values.len() {
+                            0 => sk.clone(),
+                            _ => format!("{}={}", sk.clone(), sv.values.join(",")),
+                        };
+
+                        (key, 0)
+                    })
+                    .collect::<Vec<(String, i64)>>();
+
+                Some(init_values)
+            }
+        })
+        .filter_map(|x| x)
+        .flatten()
+        .collect::<HashMap<String, i64>>();
 
     writer
         .write(r#"{"type": "FeatureCollection","features": ["#.as_bytes())
@@ -88,6 +126,7 @@ pub fn parse(
                                         &mut feature_count,
                                         geometry_types,
                                         &mut attributes_count,
+                                        &mut completeness_count,
                                     )
                                     .map(|f| {
                                         writer
@@ -104,6 +143,7 @@ pub fn parse(
                                     &mut feature_count,
                                     geometry_types,
                                     &mut attributes_count,
+                                    &mut completeness_count,
                                 )
                                 .map(|f| {
                                     writer
@@ -128,9 +168,18 @@ pub fn parse(
                 let contributors_str = serialize_hashmap(contributors);
                 let attributes_count_str = serialize_hashmap(attributes_count);
 
+                let completeness_count_str = completeness_count
+                    .iter()
+                    .map(|(k, v)| format!("\"{}\": {{ {} }}", k, serialize_hashmap(v.clone())))
+                    .collect::<Vec<String>>()
+                    .join(",");
+
                 let features_str = format!(
-                    r#","properties": {{ "feature_counts": {{ {} }} , "contributors": {{ {} }}, "attributes_count": {{ {} }} }} }}"#,
-                    feature_count_str, contributors_str, attributes_count_str
+                    r#","properties": {{ "feature_counts": {{ {} }} , "contributors": {{ {} }}, "attributes_count": {{ {} }} , "completeness_count": {{ {} }} }} }}"#,
+                    feature_count_str,
+                    contributors_str,
+                    attributes_count_str,
+                    completeness_count_str
                 );
 
                 writer.write(features_str.as_bytes()).unwrap();
