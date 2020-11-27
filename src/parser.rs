@@ -12,6 +12,14 @@ use crate::campaign::SearchTag;
 
 use crate::elements::{find_attribute, Element, ElementType, LatLng, Tag};
 
+fn serialize_counter(hashmap: HashMap<String, HashMap<String, i64>>) -> String {
+    hashmap
+        .iter()
+        .map(|(k, v)| format!("\"{}\": {{ {} }}", k, serialize_hashmap(v.clone())))
+        .collect::<Vec<String>>()
+        .join(",")
+}
+
 fn serialize_hashmap(hashmap: HashMap<String, i64>) -> String {
     hashmap
         .into_iter()
@@ -192,23 +200,10 @@ pub fn parse(
                 writer.write(b"]").unwrap();
 
                 let feature_count_str = serialize_hashmap(feature_count);
-                let attributes_count_str = attributes_count
-                    .iter()
-                    .map(|(k, v)| format!("\"{}\": {{ {} }}", k, serialize_hashmap(v.clone())))
-                    .collect::<Vec<String>>()
-                    .join(",");
+                let attributes_count_str = serialize_counter(attributes_count);
 
-                let completeness_count_str = completeness_count
-                    .iter()
-                    .map(|(k, v)| format!("\"{}\": {{ {} }}", k, serialize_hashmap(v.clone())))
-                    .collect::<Vec<String>>()
-                    .join(",");
-
-                let contributors_str = contributors
-                    .iter()
-                    .map(|(k, v)| format!("\"{}\": {{ {} }}", k, serialize_hashmap(v.clone())))
-                    .collect::<Vec<String>>()
-                    .join(",");
+                let completeness_count_str = serialize_counter(completeness_count);
+                let contributors_str = serialize_counter(contributors);
 
                 let features_str = format!(
                     r#","properties": {{ "feature_counts": {{ {} }} , "contributors": {{ {} }}, "attributes_count": {{ {} }} , "completeness_count": {{ {} }} }} }}"#,
