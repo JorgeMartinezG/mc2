@@ -20,6 +20,56 @@ fn serialize_hashmap(hashmap: HashMap<String, i64>) -> String {
         .join(",")
 }
 
+pub fn create_key(key: &String, values: &Vec<String>) -> String {
+    match values.len() {
+        0 => key.to_string(),
+        _ => format!("{}={}", key, values.join(",")),
+    }
+}
+
+fn init_completeness_counter(
+    search_tags: &HashMap<String, SearchTag>,
+) -> HashMap<String, HashMap<String, i64>> {
+    let completeness_count: HashMap<String, HashMap<String, i64>> = search_tags
+        .iter()
+        .map(|(k, v)| {
+            let mut hm = HashMap::new();
+            hm.insert("complete".to_string(), 0);
+            hm.insert("incomplete".to_string(), 0);
+
+            (create_key(k, &v.values), hm)
+        })
+        .collect();
+
+    completeness_count
+}
+
+fn init_attributes_count(search_tags: &HashMap<String, SearchTag>) -> HashMap<String, i64> {
+    search_tags
+        .iter()
+        .map(|(_k, v)| match v.secondary {
+            None => None,
+            Some(ref s) => {
+                let init_values = s
+                    .iter()
+                    .map(|(sk, sv)| (create_key(sk, &sv.values), 0))
+                    .collect::<Vec<(String, i64)>>();
+
+                Some(init_values)
+            }
+        })
+        .filter_map(|x| x)
+        .flatten()
+        .collect::<HashMap<String, i64>>()
+}
+
+fn init_feature_count(search_tags: &HashMap<String, SearchTag>) -> HashMap<String, i64> {
+    search_tags
+        .iter()
+        .map(|(k, v)| (create_key(k, &v.values), 0))
+        .collect::<HashMap<String, i64>>()
+}
+
 pub fn parse(
     read_path: &str,
     write_path: &str,
@@ -35,51 +85,15 @@ pub fn parse(
 
     let mut parser = EventReader::new(file);
 
-    let mut feature_count = search_tags.iter().map(|(k, _v)| (k.clone(), 0)).collect();
+    let mut feature_count = init_feature_count(search_tags);
 
-    let mut completeness_count: HashMap<String, HashMap<String, i64>> = search_tags
-        .iter()
-        .map(|(k, v)| {
-            let key_str = match v.values.len() {
-                0 => k.to_string(),
-                _ => format!("{}={}", k, v.values.join(",")),
-            };
-
-            let mut hm = HashMap::new();
-            hm.insert("complete".to_string(), 0);
-            hm.insert("incomplete".to_string(), 0);
-
-            (key_str, hm)
-        })
-        .collect();
+    let mut completeness_count = init_completeness_counter(search_tags);
 
     let mut element = Element::init();
 
     let mut contributors: HashMap<String, i64> = HashMap::new();
 
-    let mut attributes_count = search_tags
-        .iter()
-        .map(|(_k, v)| match v.secondary {
-            None => None,
-            Some(ref s) => {
-                let init_values = s
-                    .iter()
-                    .map(|(sk, sv)| {
-                        let key = match sv.values.len() {
-                            0 => sk.clone(),
-                            _ => format!("{}={}", sk.clone(), sv.values.join(",")),
-                        };
-
-                        (key, 0)
-                    })
-                    .collect::<Vec<(String, i64)>>();
-
-                Some(init_values)
-            }
-        })
-        .filter_map(|x| x)
-        .flatten()
-        .collect::<HashMap<String, i64>>();
+    let mut attributes_count = init_attributes_count(search_tags);
 
     writer
         .write(r#"{"type": "FeatureCollection","features": ["#.as_bytes())

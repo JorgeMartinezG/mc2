@@ -38,20 +38,13 @@ fn validate_tags(
     tags: &Vec<Tag>,
     search_key: &String,
     search_tag: &SearchTag,
-    feature_count: &mut HashMap<String, i64>,
 ) -> Option<(String, Option<TagErrors>)> {
     tags.iter()
         .find(|t| match search_tag.values.len() {
             0 => t.key.as_str() == search_key,
             _ => t.key.as_str() == search_key && search_tag.values.contains(&t.value),
         })
-        .map(|tag| {
-            if let Some(v) = feature_count.get_mut(&tag.key) {
-                *v = *v + 1;
-            } else {
-                feature_count.insert(tag.key.clone(), 1);
-            }
-
+        .map(|_tag| {
             let tag_errors = search_tag.secondary.as_ref().map(|ref r| {
                 let results = r
                     .iter()
@@ -89,13 +82,10 @@ fn validate_tags(
 fn compute_errors(
     element_tags: &Vec<Tag>,
     search_tags: &HashMap<String, SearchTag>,
-    feature_count: &mut HashMap<String, i64>,
 ) -> HashMap<String, Option<TagErrors>> {
     let errors = search_tags
         .iter()
-        .map(|(search_key, search_tag)| {
-            validate_tags(&element_tags, &search_key, &search_tag, feature_count)
-        })
+        .map(|(search_key, search_tag)| validate_tags(&element_tags, &search_key, &search_tag))
         .filter_map(|x| x)
         .collect::<HashMap<String, Option<TagErrors>>>();
     // Check Value
@@ -275,18 +265,20 @@ impl Element {
         attributes_count: &mut HashMap<String, i64>,
         completeness_count: &mut HashMap<String, HashMap<String, i64>>,
     ) -> Option<Feature> {
-        let errors = compute_errors(&self.tags, search_tags, feature_count);
+        let errors = compute_errors(&self.tags, search_tags);
         if errors.len() == 0 {
             return None;
         }
 
         errors.iter().for_each(|(k, v)| {
+            if let Some(v) = feature_count.get_mut(k) {
+                *v = *v + 1;
+            }
+
             v.as_ref().map(|tag_error| {
                 tag_error.oks.iter().for_each(|ok| {
                     if let Some(v) = attributes_count.get_mut(ok) {
                         *v = *v + 1;
-                    } else {
-                        attributes_count.insert(ok.clone(), 1);
                     }
                 });
 
@@ -299,8 +291,6 @@ impl Element {
 
                     if let Some(v) = key.get_mut(&field.to_string()) {
                         *v = *v + 1;
-                    } else {
-                        key.insert(field.to_string(), 1);
                     }
                 }
             });
