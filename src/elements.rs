@@ -10,7 +10,7 @@ use serde::Serialize;
 pub fn find_attribute(name: &str, attributes: &Vec<OwnedAttribute>) -> String {
     let attr = match attributes.iter().find(|a| a.name.local_name == name) {
         Some(v) => v.value.clone(),
-        None => "".to_string(),
+        None => "unknown".to_string(),
     };
     attr
 }
@@ -261,13 +261,23 @@ impl Element {
         geometry_types: &Vec<String>,
         attributes_count: &mut HashMap<String, i64>,
         completeness_count: &mut HashMap<String, HashMap<String, i64>>,
+        contributors: &mut HashMap<String, HashMap<String, i64>>,
     ) -> Option<Feature> {
         let errors = compute_errors(&self.tags, search_tags);
         if errors.len() == 0 {
             return None;
         }
-
         errors.iter().for_each(|(k, v)| {
+            // Add user per feature found.
+            if let Some(field) = contributors.get_mut(k) {
+                let ref user = self.props.as_ref().unwrap().user;
+                if let Some(v) = field.get_mut(user) {
+                    *v = *v + 1;
+                } else {
+                    field.insert(user.to_string(), 1);
+                }
+            }
+
             if let Some(v) = feature_count.get_mut(k) {
                 *v = *v + 1;
             }

@@ -63,6 +63,18 @@ fn init_attributes_count(search_tags: &HashMap<String, SearchTag>) -> HashMap<St
         .collect::<HashMap<String, i64>>()
 }
 
+fn init_contributors_count(
+    search_tags: &HashMap<String, SearchTag>,
+) -> HashMap<String, HashMap<String, i64>> {
+    search_tags
+        .iter()
+        .map(|(k, v)| {
+            let hm: HashMap<String, i64> = HashMap::new();
+            (create_key(k, &v.values), hm)
+        })
+        .collect::<HashMap<String, HashMap<String, i64>>>()
+}
+
 fn init_feature_count(search_tags: &HashMap<String, SearchTag>) -> HashMap<String, i64> {
     search_tags
         .iter()
@@ -91,7 +103,7 @@ pub fn parse(
 
     let mut element = Element::init();
 
-    let mut contributors: HashMap<String, i64> = HashMap::new();
+    let mut contributors = init_contributors_count(search_tags);
 
     let mut attributes_count = init_attributes_count(search_tags);
 
@@ -141,12 +153,12 @@ pub fn parse(
                                         geometry_types,
                                         &mut attributes_count,
                                         &mut completeness_count,
+                                        &mut contributors,
                                     )
                                     .map(|f| {
                                         writer
                                             .write((f.to_string() + &",".to_string()).as_bytes())
                                             .expect("could not save element");
-                                        element.add_contributor(&mut contributors);
                                     });
                             }
                         },
@@ -158,12 +170,12 @@ pub fn parse(
                                     geometry_types,
                                     &mut attributes_count,
                                     &mut completeness_count,
+                                    &mut contributors,
                                 )
                                 .map(|f| {
                                     writer
                                         .write((f.to_string() + &",".to_string()).as_bytes())
                                         .expect("could not save element");
-                                    element.add_contributor(&mut contributors);
                                 });
                         }
                         _ => continue,
@@ -179,10 +191,15 @@ pub fn parse(
                 writer.write(b"]").unwrap();
 
                 let feature_count_str = serialize_hashmap(feature_count);
-                let contributors_str = serialize_hashmap(contributors);
                 let attributes_count_str = serialize_hashmap(attributes_count);
 
                 let completeness_count_str = completeness_count
+                    .iter()
+                    .map(|(k, v)| format!("\"{}\": {{ {} }}", k, serialize_hashmap(v.clone())))
+                    .collect::<Vec<String>>()
+                    .join(",");
+
+                let contributors_str = contributors
                     .iter()
                     .map(|(k, v)| format!("\"{}\": {{ {} }}", k, serialize_hashmap(v.clone())))
                     .collect::<Vec<String>>()
