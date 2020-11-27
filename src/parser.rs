@@ -44,23 +44,24 @@ fn init_completeness_counter(
     completeness_count
 }
 
-fn init_attributes_count(search_tags: &HashMap<String, SearchTag>) -> HashMap<String, i64> {
+fn init_attributes_count(
+    search_tags: &HashMap<String, SearchTag>,
+) -> HashMap<String, HashMap<String, i64>> {
     search_tags
         .iter()
-        .map(|(_k, v)| match v.secondary {
+        .map(|(k, v)| match v.secondary {
             None => None,
             Some(ref s) => {
-                let init_values = s
+                let hm: HashMap<String, i64> = s
                     .iter()
                     .map(|(sk, sv)| (create_key(sk, &sv.values), 0))
-                    .collect::<Vec<(String, i64)>>();
+                    .collect();
 
-                Some(init_values)
+                Some((create_key(k, &v.values), hm))
             }
         })
         .filter_map(|x| x)
-        .flatten()
-        .collect::<HashMap<String, i64>>()
+        .collect::<HashMap<String, HashMap<String, i64>>>()
 }
 
 fn init_contributors_count(
@@ -191,7 +192,11 @@ pub fn parse(
                 writer.write(b"]").unwrap();
 
                 let feature_count_str = serialize_hashmap(feature_count);
-                let attributes_count_str = serialize_hashmap(attributes_count);
+                let attributes_count_str = attributes_count
+                    .iter()
+                    .map(|(k, v)| format!("\"{}\": {{ {} }}", k, serialize_hashmap(v.clone())))
+                    .collect::<Vec<String>>()
+                    .join(",");
 
                 let completeness_count_str = completeness_count
                     .iter()

@@ -259,7 +259,7 @@ impl Element {
         search_tags: &HashMap<String, SearchTag>,
         feature_count: &mut HashMap<String, i64>,
         geometry_types: &Vec<String>,
-        attributes_count: &mut HashMap<String, i64>,
+        attributes_count: &mut HashMap<String, HashMap<String, i64>>,
         completeness_count: &mut HashMap<String, HashMap<String, i64>>,
         contributors: &mut HashMap<String, HashMap<String, i64>>,
     ) -> Option<Feature> {
@@ -283,11 +283,13 @@ impl Element {
             }
 
             v.as_ref().map(|tag_error| {
-                tag_error.oks.iter().for_each(|ok| {
-                    if let Some(v) = attributes_count.get_mut(ok) {
-                        *v = *v + 1;
-                    }
-                });
+                if let Some(field) = attributes_count.get_mut(k) {
+                    tag_error.oks.iter().for_each(|ok| {
+                        if let Some(v) = field.get_mut(ok) {
+                            *v = *v + 1;
+                        }
+                    });
+                }
 
                 if let Some(key) = completeness_count.get_mut(k) {
                     let mut field = "complete";
