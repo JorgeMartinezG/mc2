@@ -90,6 +90,9 @@ mod campaign_test {
                         "secondary": {
                             "name": {
                                 "values": []
+                            },
+                            "sdadad": {
+                                "values": []
                             }
                         }
                     },

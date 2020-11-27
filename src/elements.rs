@@ -1,4 +1,5 @@
 use crate::campaign::SearchTag;
+use crate::parser::create_key;
 use geojson::{Feature, Geometry, Value};
 use serde_json::{to_value, Map};
 use std::collections::HashMap;
@@ -71,11 +72,7 @@ fn validate_tags(
                 TagErrors::new(r.len(), oks, errors)
             });
 
-            let key_str = match search_tag.values.len() {
-                0 => search_key.to_string(),
-                _ => format!("{}={}", search_key, search_tag.values.join(",")),
-            };
-            (key_str, tag_errors)
+            (create_key(search_key, &search_tag.values), tag_errors)
         })
 }
 
