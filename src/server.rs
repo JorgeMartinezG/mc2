@@ -12,6 +12,7 @@ use itsdangerous::{default_builder, Signer};
 
 use actix::prelude::{Actor, Addr, Handler, Message, SyncArbiter, SyncContext};
 
+use log::{error, info};
 use serde_json::{to_value, Map};
 
 const SECRET_KEY: &str = "pleasechangeme1234";
@@ -36,9 +37,11 @@ impl Handler<McMessage> for McActor {
 
     fn handle(&mut self, msg: McMessage, _ctx: &mut SyncContext<Self>) -> Self::Result {
         let uuid = msg.uuid.clone();
+        info!("Started campaign run - {}", uuid);
         let campaign = self.storage.load_campaign(&uuid).unwrap();
 
         let run = CampaignRun::new(campaign, self.storage.clone());
+        info!("Finished campaign run - {}", uuid);
         run.run();
     }
 }
@@ -157,7 +160,7 @@ pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications
         App::new()
             .data(AppState {
                 storage: storage.clone(),
-                addr: SyncArbiter::start(10, move || mc_actor.clone()),
+                addr: SyncArbiter::start(1, move || mc_actor.clone()),
             })
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
