@@ -10,6 +10,12 @@ pub enum AppError {
     Timeout,
 }
 
+impl From<serde_json::Error> for AppError {
+    fn from(error: serde_json::Error) -> Self {
+        AppError::InternalError
+    }
+}
+
 impl From<io::Error> for AppError {
     fn from(error: io::Error) -> Self {
         match error.kind() {

@@ -1,5 +1,6 @@
 use crate::campaign::Campaign;
 use crate::commands::CommandResult;
+use crate::errors::AppError;
 use crate::notifications::Notifications;
 use log::{info, warn};
 use serde_json::{from_str, to_string};
@@ -43,20 +44,19 @@ impl LocalStorage {
         Ok(campaign)
     }
 
-    pub fn save_campaign(&self, campaign: Campaign) -> Result<(), Notifications> {
+    pub fn save_campaign(&self, campaign: Campaign) -> Result<String, AppError> {
         let uuid = campaign.uuid.clone().unwrap();
-        let path = self.path.join(uuid);
+        let path = self.path.join(uuid.clone());
 
         create_dir(path.clone())?;
 
         let path = path.join(CAMPAIGN_FILE);
         let mut file = File::create(path)?;
 
-        let serialized =
-            to_string(&campaign).map_err(|err| Notifications::SerdeError(err.to_string()))?;
+        let serialized = to_string(&campaign)?;
         file.write_all(serialized.as_bytes())?;
 
-        Ok(())
+        Ok(uuid)
     }
 
     pub fn overpass(&self) -> String {

@@ -19,6 +19,7 @@ pub struct Campaign {
     pub name: String,
     pub geometry_types: Vec<String>,
     pub tags: HashMap<String, SearchTag>,
+    pub centroid: Option<geojson::GeoJson>,
     pub geom: geojson::GeoJson,
     pub uuid: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
@@ -60,7 +61,10 @@ impl Campaign {
 
         let geom = geojson::GeoJson::from(geometry);
 
-        Campaign { geom: geom, ..self }
+        Campaign {
+            centroid: Some(geom),
+            ..self
+        }
     }
 }
 

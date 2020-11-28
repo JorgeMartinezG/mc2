@@ -1,13 +1,11 @@
-use crate::campaign::Campaign;
+use crate::campaign::{Campaign, CampaignRun};
 use crate::commands::CommandResult;
 use crate::errors::AppError;
 use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
 
 use actix_web::middleware::Logger;
-use actix_web::{
-    dev::Payload, get, post, web, App, Error, FromRequest, HttpRequest, HttpResponse, HttpServer,
-};
+use actix_web::{dev::Payload, get, post, web, App, Error, FromRequest, HttpRequest, HttpServer};
 
 use base64::{decode, encode};
 use itsdangerous::{default_builder, Signer};
@@ -18,22 +16,30 @@ use serde_json::{to_value, Map};
 
 const SECRET_KEY: &str = "pleasechangeme1234";
 
-struct McActor {}
+#[derive(Clone)]
+struct McActor {
+    storage: LocalStorage,
+}
 
 impl Actor for McActor {
     type Context = SyncContext<Self>;
 }
 
 #[derive(Message, Debug)]
-#[rtype(result = "bool")]
-struct McMessage {}
+#[rtype(result = "()")]
+struct McMessage {
+    uuid: String,
+}
 
 impl Handler<McMessage> for McActor {
-    type Result = bool;
+    type Result = ();
 
     fn handle(&mut self, msg: McMessage, _ctx: &mut SyncContext<Self>) -> Self::Result {
-        println!("{:?}", msg);
-        true
+        let uuid = msg.uuid.clone();
+        let campaign = self.storage.load_campaign(&uuid).unwrap();
+
+        let run = CampaignRun::new(campaign, self.storage.clone());
+        run.run();
     }
 }
 
@@ -83,23 +89,25 @@ async fn get_token() -> String {
 }
 
 #[post("/campaign")]
-async fn create_campaign(campaign: web::Json<Campaign>, data: web::Data<AppState>) -> HttpResponse {
+async fn create_campaign(
+    campaign: web::Json<Campaign>,
+    data: web::Data<AppState>,
+) -> Result<String, AppError> {
     let campaign = campaign.into_inner().set_created_date().set_uuid();
 
-    let uuid = campaign.uuid.clone().unwrap();
+    let uuid = data.storage.save_campaign(campaign)?;
 
-    match data.storage.save_campaign(campaign) {
-        Ok(()) => {
-            let mut response = Map::new();
-            response.insert("uuid".to_string(), to_value(&uuid).unwrap());
-            HttpResponse::Ok()
-                .content_type("application/json")
-                .json(response)
-        }
-        Err(_e) => HttpResponse::InternalServerError()
-            .content_type("plain/text")
-            .body("Could not create campaign"),
-    }
+    let mut response = Map::new();
+    let uuid_value = to_value(&uuid)?;
+    response.insert("uuid".to_string(), uuid_value);
+
+    let json_string = serde_json::to_string(&response)?;
+
+    let ref addr = data.addr;
+
+    addr.do_send(McMessage { uuid: uuid });
+
+    Ok(json_string)
 }
 
 #[get("/campaign/{uuid}")]
@@ -143,10 +151,13 @@ struct AppState {
 #[actix_web::main]
 pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications> {
     let server = HttpServer::new(move || {
+        let mc_actor = McActor {
+            storage: storage.clone(),
+        };
         App::new()
             .data(AppState {
                 storage: storage.clone(),
-                addr: SyncArbiter::start(10, || McActor {}),
+                addr: SyncArbiter::start(10, move || mc_actor.clone()),
             })
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))

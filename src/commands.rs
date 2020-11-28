@@ -55,7 +55,9 @@ pub fn create_campaign(path: &str, storage: LocalStorage) -> Result<CommandResul
     campaign.uuid = Some(uuid.clone());
     campaign.created_at = Some(utc);
 
-    storage.save_campaign(campaign)?;
+    storage
+        .save_campaign(campaign)
+        .map_err(|err| Notifications::SerdeError(err.to_string()));
 
     Ok(CommandResult::CreateCampaign(uuid))
 }
