@@ -6,7 +6,8 @@ use crate::storage::LocalStorage;
 
 use actix_web::middleware::Logger;
 use actix_web::{
-    dev::Payload, get, post, web, App, Error, FromRequest, HttpRequest, HttpResponse, HttpServer,
+    dev::Payload, error::ErrorUnauthorized, get, post, web, App, Error, FromRequest, HttpRequest,
+    HttpResponse, HttpServer,
 };
 
 use base64::{decode, encode};
@@ -62,31 +63,32 @@ impl FromRequest for User {
     type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<User, Error>>>>;
 
     fn from_request(req: &HttpRequest, _pl: &mut Payload) -> Self::Future {
-        let auth = req
-            .headers()
-            .get("AUTHORIZATION")
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .split(" ")
-            .collect::<Vec<&str>>()[1]
-            .clone();
+        let header = req.headers().get("AUTHORIZATION");
 
-        let auth = decode(auth).unwrap();
-        let auth = std::str::from_utf8(&auth).unwrap();
+        let token: Result<&str, Error> = header
+            .ok_or(ErrorUnauthorized("Unauthorized"))
+            .and_then(|h| {
+                h.to_str()
+                    .map_err(|_e| ErrorUnauthorized("Unauthorized II"))
+            })
+            .map(|v| v.split(" ").collect::<Vec<&str>>())
+            .map(|vec| vec[0].clone());
+
+        let user_str = token
+            .and_then(|t| decode(t).map_err(|_e| ErrorUnauthorized("Invalid token")))
+            .and_then(|r| String::from_utf8(r).map_err(|_e| ErrorUnauthorized("Invalid Token II")))
+            .unwrap_or("".to_string());
 
         let signer = default_builder(SECRET_KEY).build();
-        let token = signer.unsign(auth).expect("errror").to_string();
+        let unsigned = signer
+            .unsign(&user_str)
+            .map_err(|_e| ErrorUnauthorized("Invalid user"));
 
-        Box::pin(async move {
-            let user = User {
-                id: 1234,
-                name: "admsdad".to_string(),
-            };
-            Ok(user)
+        let user: Result<User, Error> = unsigned.and_then(|unsigned| {
+            serde_json::from_str(unsigned).map_err(|_e| ErrorUnauthorized("Invalid user"))
+        });
 
-            //Err(ErrorUnauthorized("unauthorized"))
-        })
+        Box::pin(async move { user })
     }
 }
 
@@ -153,7 +155,7 @@ async fn get_campaign(
 }
 
 #[get("/campaigns")]
-async fn list_campaigns(data: web::Data<AppState>) -> Result<String, Notifications> {
+async fn list_campaigns(user: User, data: web::Data<AppState>) -> Result<String, Notifications> {
     let storage = &data.storage;
 
     let campaigns = std::fs::read_dir(&storage.path)?
