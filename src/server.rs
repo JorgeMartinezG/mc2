@@ -79,8 +79,6 @@ impl FromRequest for User {
 
         //.map(|v| v.split(" ").collect::<Vec<&str>>())
         //.map(|vec| vec[0].clone());
-
-        println!("TOKEN = {:?}", token);
         let user_str = decode(token)
             .map_err(|_e| ErrorUnauthorized("Could not decode token I"))
             .and_then(|r| {
@@ -168,7 +166,7 @@ async fn get_campaign(
 }
 
 #[get("/campaigns")]
-async fn list_campaigns(user: User, data: web::Data<AppState>) -> Result<String, Notifications> {
+async fn list_campaigns(data: web::Data<AppState>) -> Result<String, Notifications> {
     let storage = &data.storage;
 
     let campaigns = std::fs::read_dir(&storage.path)?
