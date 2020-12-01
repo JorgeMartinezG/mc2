@@ -66,23 +66,36 @@ impl FromRequest for User {
         let header = req.headers().get("AUTHORIZATION");
 
         let token: Result<&str, Error> = header
-            .ok_or(ErrorUnauthorized("Unauthorized"))
+            .ok_or(ErrorUnauthorized("Token not found"))
             .and_then(|h| {
                 h.to_str()
-                    .map_err(|_e| ErrorUnauthorized("Unauthorized II"))
-            })
-            .map(|v| v.split(" ").collect::<Vec<&str>>())
-            .map(|vec| vec[0].clone());
+                    .map_err(|_e| ErrorUnauthorized("Invalid Token I"))
+            });
 
-        let user_str = token
-            .and_then(|t| decode(t).map_err(|_e| ErrorUnauthorized("Invalid token")))
-            .and_then(|r| String::from_utf8(r).map_err(|_e| ErrorUnauthorized("Invalid Token II")))
-            .unwrap_or("".to_string());
+        let token = match token {
+            Ok(t) => t,
+            Err(e) => return Box::pin(async move { Err(e) }),
+        };
+
+        //.map(|v| v.split(" ").collect::<Vec<&str>>())
+        //.map(|vec| vec[0].clone());
+
+        println!("TOKEN = {:?}", token);
+        let user_str = decode(token)
+            .map_err(|_e| ErrorUnauthorized("Could not decode token I"))
+            .and_then(|r| {
+                String::from_utf8(r).map_err(|_e| ErrorUnauthorized("Could not decode token II"))
+            });
+
+        let user_str = match user_str {
+            Ok(t) => t,
+            Err(e) => return Box::pin(async move { Err(e) }),
+        };
 
         let signer = default_builder(SECRET_KEY).build();
         let unsigned = signer
             .unsign(&user_str)
-            .map_err(|_e| ErrorUnauthorized("Invalid user"));
+            .map_err(|_e| ErrorUnauthorized("Unsigned token"));
 
         let user: Result<User, Error> = unsigned.and_then(|unsigned| {
             serde_json::from_str(unsigned).map_err(|_e| ErrorUnauthorized("Invalid user"))
