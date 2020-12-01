@@ -177,21 +177,16 @@ async fn get_campaign(
 }
 
 #[get("/campaigns")]
-async fn list_campaigns(data: web::Data<AppState>) -> Result<String, Notifications> {
-    let storage = &data.storage;
+async fn list_campaigns(data: web::Data<AppState>) -> HttpResponse {
+    let campaigns = &data.storage.list_campaigns();
 
-    let campaigns = std::fs::read_dir(&storage.path)?
-        .map(|c| {
-            let file = c.unwrap().path().join("campaign.json");
-            let file = std::fs::File::open(file).unwrap();
-            let campaign: Campaign = serde_json::from_reader(file).unwrap();
-
-            let campaign = campaign.centroid_as_geom();
-            campaign
-        })
-        .collect::<Vec<Campaign>>();
-
-    Ok(serde_json::to_string(&campaigns).unwrap())
+    match campaigns {
+        Ok(c) => HttpResponse::Ok().content_type("application/json").json(c),
+        Err(e) => {
+            error!("{:?}", e);
+            HttpResponse::InternalServerError().body("")
+        }
+    }
 }
 
 #[derive(Clone)]

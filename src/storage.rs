@@ -2,7 +2,7 @@ use crate::campaign::Campaign;
 use crate::commands::CommandResult;
 use crate::errors::AppError;
 use crate::notifications::Notifications;
-use log::{info, warn};
+use log::{error, info, warn};
 use serde_json::{from_str, to_string};
 use std::fs::create_dir;
 use std::fs::{read_to_string, File};
@@ -57,6 +57,35 @@ impl LocalStorage {
         file.write_all(serialized.as_bytes())?;
 
         Ok(uuid)
+    }
+
+    pub fn list_campaigns(&self) -> Result<Vec<Campaign>, AppError> {
+        let campaigns = std::fs::read_dir(&self.path)?;
+
+        let campaigns = campaigns
+            .map(|c| {
+                let dir_entry: Result<Campaign, String> = c
+                    .map_err(|e| format!("Unknown error {}", e))
+                    .map(|entry| entry.path().join("campaign.json"))
+                    .and_then(|path| {
+                        std::fs::File::open(&path)
+                            .map_err(|_err| format!("Could not open file {}", path.display()))
+                    })
+                    .and_then(|f| {
+                        let campaign: Result<Campaign, String> = serde_json::from_reader(f)
+                            .map_err(|e| format!("Could not deserialize file {}", e));
+
+                        campaign
+                    })
+                    .map(|campaign| campaign.centroid_as_geom());
+
+                dir_entry
+            })
+            .filter(|c| c.is_ok())
+            .map(|c| c.unwrap())
+            .collect::<Vec<Campaign>>();
+
+        Ok(campaigns)
     }
 
     pub fn overpass(&self) -> String {
