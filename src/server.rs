@@ -5,7 +5,9 @@ use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
 
 use actix_web::middleware::Logger;
-use actix_web::{dev::Payload, get, post, web, App, Error, FromRequest, HttpRequest, HttpServer};
+use actix_web::{
+    dev::Payload, get, post, web, App, Error, FromRequest, HttpRequest, HttpResponse, HttpServer,
+};
 
 use base64::{decode, encode};
 use itsdangerous::{default_builder, Signer};
@@ -14,6 +16,8 @@ use actix::prelude::{Actor, Addr, Handler, Message, SyncArbiter, SyncContext};
 
 use log::{error, info};
 use serde_json::{to_value, Map};
+
+use serde::{Deserialize, Serialize};
 
 const SECRET_KEY: &str = "pleasechangeme1234";
 
@@ -46,8 +50,10 @@ impl Handler<McMessage> for McActor {
     }
 }
 
+#[derive(Deserialize, Serialize, Debug)]
 struct User {
-    token: String,
+    name: String,
+    id: i64,
 }
 
 impl FromRequest for User {
@@ -73,7 +79,10 @@ impl FromRequest for User {
         let token = signer.unsign(auth).expect("errror").to_string();
 
         Box::pin(async move {
-            let user = User { token: token };
+            let user = User {
+                id: 1234,
+                name: "admsdad".to_string(),
+            };
             Ok(user)
 
             //Err(ErrorUnauthorized("unauthorized"))
@@ -81,14 +90,30 @@ impl FromRequest for User {
     }
 }
 
-#[get("/token")]
-async fn get_token() -> String {
+#[post("/token")]
+async fn create_token(user: web::Json<User>) -> HttpResponse {
     let signer = default_builder(SECRET_KEY).build();
-    let token = encode(signer.sign("12345"));
 
-    println!("{:?}", &token);
+    let output = serde_json::to_string(&user.into_inner())
+        .map(|json| signer.sign(json))
+        .map(|json| encode(json))
+        .map(|token| {
+            let mut json = Map::new();
+            let token_value = to_value(&token).unwrap();
+            json.insert("token".to_string(), token_value);
+            json
+        })
+        .and_then(|str_data| serde_json::to_string(&str_data));
 
-    token
+    match output {
+        Ok(str_data) => HttpResponse::Ok()
+            .content_type("application/json")
+            .body(str_data),
+        Err(e) => {
+            error!("{}", e);
+            HttpResponse::InternalServerError().body("Server error")
+        }
+    }
 }
 
 #[post("/campaign")]
@@ -169,7 +194,7 @@ pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications
                     .service(create_campaign)
                     .service(get_campaign)
                     .service(list_campaigns)
-                    .service(get_token),
+                    .service(create_token),
             )
     })
     .bind("127.0.0.1:8080");
