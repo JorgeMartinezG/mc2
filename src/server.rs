@@ -164,10 +164,13 @@ pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications
             })
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
-            .service(create_campaign)
-            .service(get_campaign)
-            .service(list_campaigns)
-            .service(get_token)
+            .service(
+                web::scope("/api/v1/")
+                    .service(create_campaign)
+                    .service(get_campaign)
+                    .service(list_campaigns)
+                    .service(get_token),
+            )
     })
     .bind("127.0.0.1:8080");
 
