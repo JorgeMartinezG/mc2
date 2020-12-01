@@ -14,6 +14,12 @@ use chrono::prelude::{DateTime, Utc};
 
 use uuid::Uuid;
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct User {
+    name: String,
+    id: i64,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Campaign {
     pub name: String,
@@ -23,6 +29,7 @@ pub struct Campaign {
     pub geom: geojson::GeoJson,
     pub uuid: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
+    pub user: Option<User>,
 }
 
 impl Campaign {
@@ -41,6 +48,13 @@ impl Campaign {
         let utc: DateTime<Utc> = Utc::now();
         Campaign {
             created_at: Some(utc),
+            ..self
+        }
+    }
+
+    pub fn set_user(self, user: User) -> Self {
+        Campaign {
+            user: Some(user),
             ..self
         }
     }

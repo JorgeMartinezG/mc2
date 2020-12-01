@@ -1,4 +1,4 @@
-use crate::campaign::{Campaign, CampaignRun};
+use crate::campaign::{Campaign, CampaignRun, User};
 use crate::commands::CommandResult;
 use crate::errors::AppError;
 use crate::notifications::Notifications;
@@ -49,12 +49,6 @@ impl Handler<McMessage> for McActor {
         info!("Finished campaign run - {}", uuid);
         run.run();
     }
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-struct User {
-    name: String,
-    id: i64,
 }
 
 impl FromRequest for User {
@@ -131,24 +125,41 @@ async fn create_token(user: web::Json<User>) -> HttpResponse {
 
 #[post("/campaign")]
 async fn create_campaign(
+    user: User,
     campaign: web::Json<Campaign>,
     data: web::Data<AppState>,
-) -> Result<String, AppError> {
-    let campaign = campaign.into_inner().set_created_date().set_uuid();
+) -> HttpResponse {
+    let campaign = campaign
+        .into_inner()
+        .set_created_date()
+        .set_uuid()
+        .set_user(user);
 
-    let uuid = data.storage.save_campaign(campaign)?;
+    let saved = data.storage.save_campaign(campaign);
 
-    let mut response = Map::new();
-    let uuid_value = to_value(&uuid)?;
-    response.insert("uuid".to_string(), uuid_value);
+    let resp = saved
+        .map(|uuid| {
+            let ref addr = data.addr;
+            addr.do_send(McMessage { uuid: uuid.clone() });
+            uuid
+        })
+        .and_then(|uuid| {
+            let mut response = Map::new();
+            let uuid_value = to_value(&uuid).unwrap();
+            response.insert("uuid".to_string(), uuid_value);
 
-    let json_string = serde_json::to_string(&response)?;
+            let json_string = serde_json::to_string(&response)?;
 
-    let ref addr = data.addr;
+            Ok(json_string)
+        });
 
-    addr.do_send(McMessage { uuid: uuid });
-
-    Ok(json_string)
+    match resp {
+        Ok(j) => HttpResponse::Ok().content_type("application/json").body(j),
+        Err(e) => {
+            error!("{:?}", e);
+            HttpResponse::InternalServerError().body("An error ocurred")
+        }
+    }
 }
 
 #[get("/campaign/{uuid}")]
