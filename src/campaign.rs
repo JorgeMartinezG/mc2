@@ -30,6 +30,7 @@ pub struct Campaign {
     pub geom: geojson::GeoJson,
     pub uuid: Option<String>,
     pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
     pub user: Option<User>,
 }
 
@@ -55,6 +56,14 @@ impl Campaign {
         let utc: DateTime<Utc> = Utc::now();
         Campaign {
             created_at: Some(utc),
+            ..self
+        }
+    }
+
+    pub fn set_updated_date(self) -> Self {
+        let utc: DateTime<Utc> = Utc::now();
+        Campaign {
+            updated_at: Some(utc),
             ..self
         }
     }

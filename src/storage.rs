@@ -1,8 +1,8 @@
 use crate::campaign::Campaign;
 use crate::commands::CommandResult;
 use crate::errors::AppError;
-use crate::notifications::Notifications;
-use log::{error, info, warn};
+
+use log::{info, warn};
 use serde_json::{from_str, to_string};
 use std::fs::create_dir;
 use std::fs::{read_to_string, File};
@@ -32,17 +32,31 @@ impl LocalStorage {
     }
 
     pub fn delete_campaign(&self, uuid: &str) -> Result<(), AppError> {
-        let path = self.path.join(uuid).join(CAMPAIGN_FILE);
+        let path = self.path.join(uuid);
 
         std::fs::remove_dir_all(path)?;
 
         Ok(())
     }
 
-    pub fn update_campaign(&self, uuid: &str, new_campaign: Campaign) -> Result<(), AppError> {
+    pub fn update_campaign(
+        &self,
+        uuid: &str,
+        old_campaign: Campaign,
+        new_campaign: Campaign,
+    ) -> Result<(), AppError> {
         let path = self.path.join(uuid).join(CAMPAIGN_FILE);
 
         let mut file = File::create(path)?;
+
+        let new_campaign = Campaign {
+            uuid: old_campaign.uuid,
+            created_at: old_campaign.created_at,
+            user: old_campaign.user,
+            ..new_campaign
+        };
+
+        let new_campaign = new_campaign.set_updated_date();
 
         let serialized = to_string(&new_campaign)?;
         file.write_all(serialized.as_bytes())?;
@@ -56,7 +70,7 @@ impl LocalStorage {
         let contents = read_to_string(path)?;
 
         let campaign: Result<Campaign, AppError> =
-            from_str(&contents).map_err(|err| AppError::SerdeError);
+            from_str(&contents).map_err(|err| AppError::SerdeError(err.to_string()));
 
         let campaign = campaign?;
 

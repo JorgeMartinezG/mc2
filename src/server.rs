@@ -6,7 +6,7 @@ use crate::storage::LocalStorage;
 
 use actix_web::middleware::Logger;
 use actix_web::{
-    dev::Payload, error::ErrorUnauthorized, get, patch, post, web, App, Error, FromRequest,
+    delete, dev::Payload, error::ErrorUnauthorized, get, patch, post, web, App, Error, FromRequest,
     HttpRequest, HttpResponse, HttpServer,
 };
 
@@ -166,24 +166,30 @@ async fn update_campaign(
 ) -> HttpResponse {
     let storage = &data.storage;
 
-    let status = storage.load_campaign(&uuid).and_then(|old_campaign| {
-        if old_campaign.is_creator(&user) == false {
-            return Err(AppError::Forbidden("Not allowed".to_string()));
-        }
-
-        storage.update_campaign(&uuid, campaign.into_inner())
-    });
+    let status = storage
+        .load_campaign(&uuid)
+        .map_err(|err| match err {
+            AppError::NotFound => {
+                HttpResponse::NotFound().body(format!("Campaign {} not found", uuid))
+            }
+            _ => HttpResponse::InternalServerError().body("Error found loading the campaign"),
+        })
+        .and_then(|c| match c.is_creator(&user) {
+            true => storage
+                .update_campaign(&uuid, c, campaign.into_inner())
+                .map_err(|_err| {
+                    HttpResponse::InternalServerError().body("Could not update campaign")
+                }),
+            false => Err(HttpResponse::Forbidden().body("Not Allowed")),
+        });
 
     match status {
-        Ok(_ok) => HttpResponse::Ok().body("Campaign updated successfully"),
-        Err(err) => match err {
-            AppError::Forbidden(_) => HttpResponse::Forbidden().body("Forbidden"),
-            _ => HttpResponse::InternalServerError().body("Error"),
-        },
+        Ok(_ok) => HttpResponse::Ok().body(""),
+        Err(e) => e,
     }
 }
 
-#[get("/campaign/{uuid}")]
+#[delete("/campaign/{uuid}")]
 async fn delete_campaign(
     user: User,
     web::Path(uuid): web::Path<String>,
@@ -191,28 +197,25 @@ async fn delete_campaign(
 ) -> HttpResponse {
     let storage = &data.storage;
 
-    let ok_to_delete = storage.load_campaign(&uuid).map(|c| c.is_creator(&user));
-
-    let status = match ok_to_delete {
-        Ok(same_user) => {
-            if same_user == true {
-                storage
-                    .delete_campaign(&uuid)
-                    .map(|_k| "ok")
-                    .map_err(|_err| "error")
-            } else {
-                Err("forbidden")
+    let status = storage
+        .load_campaign(&uuid)
+        .map_err(|err| match err {
+            AppError::NotFound => {
+                HttpResponse::NotFound().body(format!("Campaign {} not found", uuid))
             }
-        }
-        Err(_e) => Err("error"),
-    };
+            _ => HttpResponse::InternalServerError().body("An error ocurred loading the campaign"),
+        })
+        .map(|c| c.is_creator(&user))
+        .and_then(|is_user| match is_user {
+            true => storage.delete_campaign(&uuid).map_err(|_err| {
+                HttpResponse::InternalServerError().body("Could not delete campaign")
+            }),
+            false => Err(HttpResponse::Forbidden().body("Not Allowed")),
+        });
 
     match status {
         Ok(_ok) => HttpResponse::Ok().body(""),
-        Err(e) => match e {
-            "forbidden" => HttpResponse::Forbidden().body("Forbidden"),
-            _ => HttpResponse::InternalServerError().body("Error"),
-        },
+        Err(e) => e,
     }
 }
 
@@ -220,13 +223,20 @@ async fn delete_campaign(
 async fn get_campaign(
     web::Path(uuid): web::Path<String>,
     data: web::Data<AppState>,
-) -> Result<String, AppError> {
+) -> HttpResponse {
     let storage = &data.storage;
 
-    let path = storage.path.join(uuid).join("campaign.json");
-    let contents = std::fs::read_to_string(path)?;
-
-    Ok(contents)
+    match storage.load_campaign(&uuid) {
+        Ok(campaign) => HttpResponse::Ok()
+            .content_type("application/json")
+            .json(campaign),
+        Err(e) => match e {
+            AppError::NotFound => {
+                HttpResponse::NotFound().body(format!("Campaign {} not found", uuid))
+            }
+            _ => HttpResponse::InternalServerError().body(""),
+        },
+    }
 }
 
 #[get("/campaigns")]
@@ -265,6 +275,8 @@ pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications
                 web::scope("/api/v1/")
                     .service(create_campaign)
                     .service(get_campaign)
+                    .service(delete_campaign)
+                    .service(update_campaign)
                     .service(list_campaigns)
                     .service(create_token),
             )
