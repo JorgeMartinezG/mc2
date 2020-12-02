@@ -31,13 +31,32 @@ impl LocalStorage {
         }
     }
 
-    pub fn load_campaign(&self, uuid: &str) -> Result<Campaign, Notifications> {
+    pub fn delete_campaign(&self, uuid: &str) -> Result<(), AppError> {
+        let path = self.path.join(uuid).join(CAMPAIGN_FILE);
+
+        std::fs::remove_dir_all(path)?;
+
+        Ok(())
+    }
+
+    pub fn update_campaign(&self, uuid: &str, new_campaign: Campaign) -> Result<(), AppError> {
+        let path = self.path.join(uuid).join(CAMPAIGN_FILE);
+
+        let mut file = File::create(path)?;
+
+        let serialized = to_string(&new_campaign)?;
+        file.write_all(serialized.as_bytes())?;
+
+        Ok(())
+    }
+
+    pub fn load_campaign(&self, uuid: &str) -> Result<Campaign, AppError> {
         let path = self.path.join(uuid).join(CAMPAIGN_FILE);
 
         let contents = read_to_string(path)?;
 
-        let campaign: Result<Campaign, Notifications> =
-            from_str(&contents).map_err(|err| Notifications::SerdeError(err.to_string()));
+        let campaign: Result<Campaign, AppError> =
+            from_str(&contents).map_err(|err| AppError::SerdeError);
 
         let campaign = campaign?;
 
@@ -66,7 +85,7 @@ impl LocalStorage {
             .map(|c| {
                 let dir_entry: Result<Campaign, String> = c
                     .map_err(|e| format!("Unknown error {}", e))
-                    .map(|entry| entry.path().join("campaign.json"))
+                    .map(|entry| entry.path().join(CAMPAIGN_FILE))
                     .and_then(|path| {
                         std::fs::File::open(&path)
                             .map_err(|_err| format!("Could not open file {}", path.display()))

@@ -6,8 +6,8 @@ use crate::storage::LocalStorage;
 
 use actix_web::middleware::Logger;
 use actix_web::{
-    dev::Payload, error::ErrorUnauthorized, get, post, web, App, Error, FromRequest, HttpRequest,
-    HttpResponse, HttpServer,
+    dev::Payload, error::ErrorUnauthorized, get, patch, post, web, App, Error, FromRequest,
+    HttpRequest, HttpResponse, HttpServer,
 };
 
 use base64::{decode, encode};
@@ -15,10 +15,8 @@ use itsdangerous::{default_builder, Signer};
 
 use actix::prelude::{Actor, Addr, Handler, Message, SyncArbiter, SyncContext};
 
-use log::{error, info};
+use log::error;
 use serde_json::{to_value, Map};
-
-use serde::{Deserialize, Serialize};
 
 const SECRET_KEY: &str = "pleasechangeme1234";
 
@@ -42,11 +40,8 @@ impl Handler<McMessage> for McActor {
 
     fn handle(&mut self, msg: McMessage, _ctx: &mut SyncContext<Self>) -> Self::Result {
         let uuid = msg.uuid.clone();
-        info!("Started campaign run - {}", uuid);
         let campaign = self.storage.load_campaign(&uuid).unwrap();
-
         let run = CampaignRun::new(campaign, self.storage.clone());
-        info!("Finished campaign run - {}", uuid);
         run.run();
     }
 }
@@ -162,6 +157,65 @@ async fn create_campaign(
     }
 }
 
+#[patch("/campaign/{uuid}")]
+async fn update_campaign(
+    user: User,
+    web::Path(uuid): web::Path<String>,
+    data: web::Data<AppState>,
+    campaign: web::Json<Campaign>,
+) -> HttpResponse {
+    let storage = &data.storage;
+
+    let status = storage.load_campaign(&uuid).and_then(|old_campaign| {
+        if old_campaign.is_creator(&user) == false {
+            return Err(AppError::Forbidden("Not allowed".to_string()));
+        }
+
+        storage.update_campaign(&uuid, campaign.into_inner())
+    });
+
+    match status {
+        Ok(_ok) => HttpResponse::Ok().body("Campaign updated successfully"),
+        Err(err) => match err {
+            AppError::Forbidden(_) => HttpResponse::Forbidden().body("Forbidden"),
+            _ => HttpResponse::InternalServerError().body("Error"),
+        },
+    }
+}
+
+#[get("/campaign/{uuid}")]
+async fn delete_campaign(
+    user: User,
+    web::Path(uuid): web::Path<String>,
+    data: web::Data<AppState>,
+) -> HttpResponse {
+    let storage = &data.storage;
+
+    let ok_to_delete = storage.load_campaign(&uuid).map(|c| c.is_creator(&user));
+
+    let status = match ok_to_delete {
+        Ok(same_user) => {
+            if same_user == true {
+                storage
+                    .delete_campaign(&uuid)
+                    .map(|_k| "ok")
+                    .map_err(|_err| "error")
+            } else {
+                Err("forbidden")
+            }
+        }
+        Err(_e) => Err("error"),
+    };
+
+    match status {
+        Ok(_ok) => HttpResponse::Ok().body(""),
+        Err(e) => match e {
+            "forbidden" => HttpResponse::Forbidden().body("Forbidden"),
+            _ => HttpResponse::InternalServerError().body("Error"),
+        },
+    }
+}
+
 #[get("/campaign/{uuid}")]
 async fn get_campaign(
     web::Path(uuid): web::Path<String>,
@@ -170,7 +224,6 @@ async fn get_campaign(
     let storage = &data.storage;
 
     let path = storage.path.join(uuid).join("campaign.json");
-    println!("{:?}", path);
     let contents = std::fs::read_to_string(path)?;
 
     Ok(contents)

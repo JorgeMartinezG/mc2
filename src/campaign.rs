@@ -14,10 +14,12 @@ use chrono::prelude::{DateTime, Utc};
 
 use uuid::Uuid;
 
+use log::info;
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct User {
     name: String,
-    id: i64,
+    pub id: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -41,6 +43,12 @@ impl Campaign {
             uuid: Some(uuid),
             ..self
         }
+    }
+
+    pub fn is_creator(&self, user: &User) -> bool {
+        let campaign_user = self.user.as_ref().unwrap();
+
+        campaign_user.id == user.id && campaign_user.name == user.name
     }
 
     pub fn set_created_date(self) -> Self {
@@ -122,10 +130,15 @@ impl CampaignRun {
     }
 
     pub fn run(&self) {
+        info!("Started campaign run - {}", self.uuid);
+
         let xml_path = self.overpass();
         let json_path = self.json();
 
         self.source.fetch_data(&xml_path);
+
         parse(&xml_path, &json_path, &self.tags, &self.geometry_types);
+
+        info!("Finished campaign run - {}", self.uuid);
     }
 }

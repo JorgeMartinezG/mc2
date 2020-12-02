@@ -27,7 +27,9 @@ impl CommandResult {
 }
 
 pub fn load_campaign(uuid: &str, storage: LocalStorage) -> Result<CommandResult, Notifications> {
-    let campaign = storage.load_campaign(uuid)?;
+    let campaign = storage
+        .load_campaign(uuid)
+        .map_err(|err| Notifications::IOError(err.to_string()))?;
 
     let run = CampaignRun::new(campaign, storage);
     run.run();

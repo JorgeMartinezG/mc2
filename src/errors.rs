@@ -8,6 +8,8 @@ pub enum AppError {
     InternalError,
     BadClientData,
     Timeout,
+    Forbidden(String),
+    SerdeError,
 }
 
 impl From<serde_json::Error> for AppError {
@@ -41,9 +43,10 @@ impl error::ResponseError for AppError {
     fn status_code(&self) -> StatusCode {
         match *self {
             AppError::NotFound => StatusCode::NOT_FOUND,
-            AppError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::SerdeError | AppError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::BadClientData => StatusCode::BAD_REQUEST,
             AppError::Timeout => StatusCode::GATEWAY_TIMEOUT,
+            AppError::Forbidden(ref _e) => StatusCode::FORBIDDEN,
         }
     }
 }
