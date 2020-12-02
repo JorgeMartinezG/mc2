@@ -219,6 +219,26 @@ async fn delete_campaign(
     }
 }
 
+#[get("/results/{uuid}")]
+async fn get_results(
+    web::Path(uuid): web::Path<String>,
+    data: web::Data<AppState>,
+) -> HttpResponse {
+    let storage = &data.storage;
+
+    match storage.load_results(&uuid) {
+        Ok(results) => HttpResponse::Ok()
+            .content_type("application/json")
+            .json(results),
+        Err(e) => match e {
+            AppError::NotFound => {
+                HttpResponse::NotFound().body(format!("Results {} not found", uuid))
+            }
+            _ => HttpResponse::InternalServerError().body(""),
+        },
+    }
+}
+
 #[get("/campaign/{uuid}")]
 async fn get_campaign(
     web::Path(uuid): web::Path<String>,
@@ -275,6 +295,7 @@ pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications
                 web::scope("/api/v1/")
                     .service(create_campaign)
                     .service(get_campaign)
+                    .service(get_results)
                     .service(delete_campaign)
                     .service(update_campaign)
                     .service(list_campaigns)

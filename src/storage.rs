@@ -9,12 +9,15 @@ use std::fs::{read_to_string, File};
 use std::io::Write;
 use std::path::PathBuf;
 
+use geojson::GeoJson;
+
 #[derive(Clone)]
 pub struct LocalStorage {
     pub path: PathBuf,
 }
 
 const CAMPAIGN_FILE: &str = "campaign.json";
+const OUTPUT_FILE: &str = "output.json";
 
 impl LocalStorage {
     pub fn new(storage: &PathBuf) -> Self {
@@ -75,6 +78,19 @@ impl LocalStorage {
         let campaign = campaign?;
 
         Ok(campaign)
+    }
+
+    pub fn load_results(&self, uuid: &str) -> Result<GeoJson, AppError> {
+        let path = self.path.join(uuid).join(OUTPUT_FILE);
+
+        let contents = read_to_string(path)?;
+
+        let results: Result<GeoJson, AppError> =
+            from_str(&contents).map_err(|err| AppError::SerdeError(err.to_string()));
+
+        let results = results?;
+
+        Ok(results)
     }
 
     pub fn save_campaign(&self, campaign: Campaign) -> Result<String, AppError> {
