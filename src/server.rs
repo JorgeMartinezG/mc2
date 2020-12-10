@@ -4,10 +4,10 @@ use crate::errors::AppError;
 use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
 
-use actix_web::middleware::Logger;
+use actix_web::middleware::{Compress, Logger};
 use actix_web::{
-    delete, dev::Payload, error::ErrorUnauthorized, get, patch, post, web, App, Error, FromRequest,
-    HttpRequest, HttpResponse, HttpServer,
+    delete, dev::BodyEncoding, dev::Payload, error::ErrorUnauthorized, get, http::ContentEncoding,
+    patch, post, web, App, Error, FromRequest, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 
 use base64::{decode, encode};
@@ -17,6 +17,8 @@ use actix::prelude::{Actor, Addr, Handler, Message, SyncArbiter, SyncContext};
 
 use log::error;
 use serde_json::{to_value, Map};
+
+use actix_files::NamedFile;
 
 const SECRET_KEY: &str = "pleasechangeme1234";
 
@@ -223,20 +225,33 @@ async fn delete_campaign(
 async fn get_results(
     web::Path(uuid): web::Path<String>,
     data: web::Data<AppState>,
+    req: HttpRequest,
 ) -> HttpResponse {
     let storage = &data.storage;
 
-    match storage.load_results(&uuid) {
-        Ok(results) => HttpResponse::Ok()
-            .content_type("application/json")
-            .json(results),
-        Err(e) => match e {
-            AppError::NotFound => {
-                HttpResponse::NotFound().body(format!("Results {} not found", uuid))
-            }
-            _ => HttpResponse::InternalServerError().body(""),
-        },
-    }
+    let path = storage.path.join(uuid).join("output.json");
+
+    let mut resp = NamedFile::open(path)
+        .unwrap()
+        .respond_to(&req)
+        .await
+        .unwrap();
+
+    HttpResponse::Ok()
+        .encoding(ContentEncoding::Br)
+        .streaming(resp.take_body())
+
+    // match storage.load_results(&uuid) {
+    //     Ok(results) => HttpResponse::Ok()
+    //         .encoding(ContentEncoding::Br)
+    //         .json(results),
+    //     Err(e) => match e {
+    //         AppError::NotFound => {
+    //             HttpResponse::NotFound().body(format!("Results {} not found", uuid))
+    //         }
+    //         _ => HttpResponse::InternalServerError().body(""),
+    //     },
+    // }
 }
 
 #[get("/campaign/{uuid}")]
@@ -291,6 +306,7 @@ pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications
             })
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
+            .wrap(Compress::default())
             .service(
                 web::scope("/api/v1/")
                     .service(create_campaign)
