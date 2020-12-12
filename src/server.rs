@@ -1,8 +1,7 @@
-use crate::campaign::{Campaign, CampaignRun, User};
+use crate::campaign::{Campaign, CampaignRun, Status, User};
 use crate::commands::CommandResult;
 use crate::errors::AppError;
-use crate::notifications::Notifications;
-use crate::storage::LocalStorage;
+use crate::storage::{LocalStorage, OUTPUT_FILE};
 
 use actix_web::middleware::{Compress, Logger};
 use actix_web::{
@@ -130,7 +129,8 @@ async fn create_campaign(
         .into_inner()
         .set_created_date()
         .set_uuid()
-        .set_user(user);
+        .set_user(user)
+        .set_status(Status::Created);
 
     let saved = data.storage.save_campaign(campaign);
 
@@ -178,7 +178,7 @@ async fn update_campaign(
         })
         .and_then(|c| match c.is_creator(&user) {
             true => storage
-                .update_campaign(&uuid, c, campaign.into_inner())
+                .update_campaign(c, campaign.into_inner())
                 .map_err(|_err| {
                     HttpResponse::InternalServerError().body("Could not update campaign")
                 }),
@@ -229,8 +229,11 @@ async fn get_results(
 ) -> HttpResponse {
     let storage = &data.storage;
 
-    let path = storage.path.join(uuid).join("output.json");
+    if storage.is_campaign_running(&uuid) == true {
+        return HttpResponse::Conflict().body(format!("Campaign {} is running", uuid));
+    }
 
+    let path = storage.path.join(uuid).join(OUTPUT_FILE);
     match NamedFile::open(path).respond_to(&req).await {
         Ok(mut r) => HttpResponse::Ok()
             .encoding(ContentEncoding::Br)

@@ -14,12 +14,19 @@ use chrono::prelude::{DateTime, Utc};
 
 use uuid::Uuid;
 
-use log::info;
+use log::{error, info};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct User {
     name: String,
     pub id: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Status {
+    Created,
+    Running,
+    Finished,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -32,6 +39,7 @@ pub struct Campaign {
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
     pub user: Option<User>,
+    pub status: Option<Status>,
 }
 
 impl Campaign {
@@ -71,6 +79,13 @@ impl Campaign {
     pub fn set_user(self, user: User) -> Self {
         Campaign {
             user: Some(user),
+            ..self
+        }
+    }
+
+    pub fn set_status(self, status: Status) -> Self {
+        Campaign {
+            status: Some(status),
             ..self
         }
     }
@@ -139,6 +154,12 @@ impl CampaignRun {
     }
 
     pub fn run(&self) {
+        let campaign = self.storage.load_campaign(&self.uuid).unwrap();
+        let new_campaign = campaign.clone().set_status(Status::Running);
+        match self.storage.update_campaign(campaign, new_campaign) {
+            Ok(()) => info!("Set status to running"),
+            Err(_err) => error!("Could not update campaign status to running"),
+        };
         info!("Started campaign run - {}", self.uuid);
 
         let xml_path = self.overpass();
@@ -148,6 +169,12 @@ impl CampaignRun {
 
         parse(&xml_path, &json_path, &self.tags, &self.geometry_types);
 
+        let campaign = self.storage.load_campaign(&self.uuid).unwrap();
+        let new_campaign = campaign.clone().set_status(Status::Finished);
+        match self.storage.update_campaign(campaign, new_campaign) {
+            Ok(()) => info!("Set status to finished"),
+            Err(_err) => error!("Could not update campaign status to finished"),
+        };
         info!("Finished campaign run - {}", self.uuid);
     }
 }

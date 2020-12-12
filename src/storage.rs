@@ -1,8 +1,8 @@
-use crate::campaign::Campaign;
+use crate::campaign::{Campaign, Status};
 use crate::commands::CommandResult;
 use crate::errors::AppError;
 
-use log::{info, warn};
+use log::{error, info, warn};
 use serde_json::{from_str, to_string};
 use std::fs::create_dir;
 use std::fs::{read_to_string, File};
@@ -17,7 +17,7 @@ pub struct LocalStorage {
 }
 
 const CAMPAIGN_FILE: &str = "campaign.json";
-const OUTPUT_FILE: &str = "output.json";
+pub const OUTPUT_FILE: &str = "output.json";
 
 impl LocalStorage {
     pub fn new(storage: &PathBuf) -> Self {
@@ -42,12 +42,26 @@ impl LocalStorage {
         Ok(())
     }
 
+    pub fn is_campaign_running(&self, uuid: &str) -> bool {
+        let campaign = match self.load_campaign(uuid) {
+            Ok(c) => c,
+            Err(err) => {
+                error!("{}", err.to_string());
+                return false;
+            }
+        };
+        match campaign.status.unwrap() {
+            Status::Finished => false,
+            _ => true,
+        }
+    }
+
     pub fn update_campaign(
         &self,
-        uuid: &str,
         old_campaign: Campaign,
         new_campaign: Campaign,
     ) -> Result<(), AppError> {
+        let uuid = old_campaign.uuid.clone().unwrap();
         let path = self.path.join(uuid).join(CAMPAIGN_FILE);
 
         let mut file = File::create(path)?;
