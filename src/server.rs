@@ -279,7 +279,7 @@ struct AppState {
 }
 
 #[actix_web::main]
-pub async fn serve(storage: LocalStorage) -> Result<CommandResult, Notifications> {
+pub async fn serve(storage: LocalStorage) -> Result<CommandResult, AppError> {
     let server = HttpServer::new(move || {
         let mc_actor = McActor {
             storage: storage.clone(),

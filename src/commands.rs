@@ -1,5 +1,5 @@
 use crate::campaign::{Campaign, CampaignRun};
-use crate::notifications::Notifications;
+use crate::errors::AppError;
 use crate::storage::LocalStorage;
 
 use log::{error, info};
@@ -27,10 +27,10 @@ impl CommandResult {
     }
 }
 
-pub fn load_campaign(uuid: &str, storage: LocalStorage) -> Result<CommandResult, Notifications> {
+pub fn load_campaign(uuid: &str, storage: LocalStorage) -> Result<CommandResult, AppError> {
     let campaign = storage
         .load_campaign(uuid)
-        .map_err(|err| Notifications::IOError(err.to_string()))?;
+        .map_err(|err| AppError::IOError(err.to_string()))?;
 
     let run = CampaignRun::new(campaign, storage);
     run.run();
@@ -45,12 +45,12 @@ pub fn create_uuid() -> String {
     uuid
 }
 
-pub fn create_campaign(path: &str, storage: LocalStorage) -> Result<CommandResult, Notifications> {
+pub fn create_campaign(path: &str, storage: LocalStorage) -> Result<CommandResult, AppError> {
     let uuid = create_uuid();
 
     let file = File::open(path)?;
-    let campaign: Result<Campaign, Notifications> =
-        serde_json::from_reader(file).map_err(|err| Notifications::SerdeError(err.to_string()));
+    let campaign: Result<Campaign, AppError> =
+        serde_json::from_reader(file).map_err(|err| AppError::SerdeError(err.to_string()));
 
     let mut campaign = campaign?;
 
@@ -60,7 +60,7 @@ pub fn create_campaign(path: &str, storage: LocalStorage) -> Result<CommandResul
 
     match storage
         .save_campaign(campaign)
-        .map_err(|err| Notifications::SerdeError(err.to_string()))
+        .map_err(|err| AppError::SerdeError(err.to_string()))
     {
         Ok(v) => info!("Campaign {} created successfully", v),
         Err(err) => error!("{}", err),
