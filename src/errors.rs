@@ -6,9 +6,9 @@ use log::error;
 #[derive(Debug)]
 pub enum AppError {
     NotFound,
-    InternalError,
-    Forbidden,
+    IOError(String),
     SerdeError(String),
+    RunError(String),
 }
 
 impl From<serde_json::Error> for AppError {
@@ -22,13 +22,13 @@ impl From<io::Error> for AppError {
         error!("{:?}", error.to_string());
         match error.kind() {
             io::ErrorKind::NotFound => AppError::NotFound,
-            _ => AppError::InternalError,
+            _ => AppError::IOError(error.to_string()),
         }
     }
 }
 
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AAA")
+        write!(f, "An error ocurred!")
     }
 }

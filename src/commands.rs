@@ -2,6 +2,7 @@ use crate::campaign::{Campaign, CampaignRun};
 use crate::notifications::Notifications;
 use crate::storage::LocalStorage;
 
+use log::{error, info};
 use serde_json;
 use std::fs::File;
 use uuid::Uuid;
@@ -57,9 +58,13 @@ pub fn create_campaign(path: &str, storage: LocalStorage) -> Result<CommandResul
     campaign.uuid = Some(uuid.clone());
     campaign.created_at = Some(utc);
 
-    storage
+    match storage
         .save_campaign(campaign)
-        .map_err(|err| Notifications::SerdeError(err.to_string()));
+        .map_err(|err| Notifications::SerdeError(err.to_string()))
+    {
+        Ok(v) => info!("Campaign {} created successfully", v),
+        Err(err) => error!("{}", err),
+    };
 
     Ok(CommandResult::CreateCampaign(uuid))
 }

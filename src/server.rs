@@ -231,27 +231,12 @@ async fn get_results(
 
     let path = storage.path.join(uuid).join("output.json");
 
-    let mut resp = NamedFile::open(path)
-        .unwrap()
-        .respond_to(&req)
-        .await
-        .unwrap();
-
-    HttpResponse::Ok()
-        .encoding(ContentEncoding::Br)
-        .streaming(resp.take_body())
-
-    // match storage.load_results(&uuid) {
-    //     Ok(results) => HttpResponse::Ok()
-    //         .encoding(ContentEncoding::Br)
-    //         .json(results),
-    //     Err(e) => match e {
-    //         AppError::NotFound => {
-    //             HttpResponse::NotFound().body(format!("Results {} not found", uuid))
-    //         }
-    //         _ => HttpResponse::InternalServerError().body(""),
-    //     },
-    // }
+    match NamedFile::open(path).respond_to(&req).await {
+        Ok(mut r) => HttpResponse::Ok()
+            .encoding(ContentEncoding::Br)
+            .streaming(r.take_body()),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
+    }
 }
 
 #[get("/campaign/{uuid}")]
