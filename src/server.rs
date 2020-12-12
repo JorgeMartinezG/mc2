@@ -292,6 +292,15 @@ pub async fn serve(storage: LocalStorage) -> Result<CommandResult, AppError> {
                 storage: storage.clone(),
                 addr: SyncArbiter::start(1, move || mc_actor.clone()),
             })
+            .app_data(web::JsonConfig::default().error_handler(|err, _req| {
+                actix_web::error::InternalError::from_response(
+                    "",
+                    HttpResponse::BadRequest()
+                        .content_type("application/json")
+                        .body(format!(r#"{{"error":"{}"}}"#, err)),
+                )
+                .into()
+            }))
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .wrap(Compress::default())
