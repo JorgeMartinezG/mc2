@@ -12,7 +12,7 @@ pub struct Overpass {
     nodes: Vec<String>,
     ways: Vec<String>,
     relations: Vec<String>,
-    polygon_str: String,
+    polygon_strs: Vec<String>,
     url: String,
 }
 
@@ -50,37 +50,43 @@ impl Overpass {
         query
     }
 
-    fn geom(geom: &GeoJson) -> String {
+    fn geom(geom: &GeoJson) -> Vec<String> {
         let feature_collection = match &geom {
             GeoJson::FeatureCollection(f) => f,
             _ => panic!("Geojson must be FeatureCollection"),
         };
 
-        let ref value = feature_collection.features[0]
-            .geometry
-            .as_ref()
-            .expect("Geometry not found")
-            .value;
-
-        let polygons_array = match value {
-            Value::Polygon(p) => p,
-            _ => panic!("Polygon type supported only"),
-        };
-
-        let items = &polygons_array[0];
-
-        let size_vec = items.len();
-
-        items
+        let externals: Vec<String> = feature_collection
+            .features
             .iter()
-            .take(size_vec - 1)
-            .map(|b| format!("{} {}", b[1], b[0]))
-            .collect::<Vec<String>>()
-            .join(" ")
+            .map(|f| {
+                let ref value = f.geometry.as_ref().expect("Geometry not found").value;
+
+                let polygons_array = match value {
+                    Value::Polygon(p) => p,
+                    _ => panic!("Polygon type supported only"),
+                };
+
+                // Take external polygon.
+                let items = &polygons_array[0];
+                items
+            })
+            .map(|items| {
+                let size_vec = items.len();
+                items
+                    .iter()
+                    .take(size_vec - 1)
+                    .map(|b| format!("{} {}", b[1], b[0]))
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            })
+            .collect();
+
+        externals
     }
 
     pub fn new(campaign: Campaign) -> Overpass {
-        let polygon_str = Overpass::geom(&campaign.geom);
+        let polygon_strs = Overpass::geom(&campaign.geom);
         let mut nodes = Vec::new();
         let mut ways = Vec::new();
         let mut relations = Vec::new();
@@ -91,25 +97,31 @@ impl Overpass {
             .iter()
             .for_each(|t| match t.as_str() {
                 "points" => tags.iter().for_each(|(k, v)| {
-                    nodes.push(Overpass::create_filter(
-                        "node",
-                        &(k, v.values.clone()),
-                        &polygon_str,
-                    ))
+                    polygon_strs.iter().for_each(|pstr| {
+                        nodes.push(Overpass::create_filter(
+                            "node",
+                            &(k, v.values.clone()),
+                            &pstr,
+                        ))
+                    })
                 }),
                 "lines" => tags.iter().for_each(|(k, v)| {
-                    ways.push(Overpass::create_filter(
-                        "way",
-                        &(k, v.values.clone()),
-                        &polygon_str,
-                    ))
+                    polygon_strs.iter().for_each(|pstr| {
+                        ways.push(Overpass::create_filter(
+                            "way",
+                            &(k, v.values.clone()),
+                            &pstr,
+                        ))
+                    })
                 }),
                 "polygons" => tags.iter().for_each(|(k, v)| {
-                    relations.push(Overpass::create_filter(
-                        "way",
-                        &(k, v.values.clone()),
-                        &polygon_str,
-                    ))
+                    polygon_strs.iter().for_each(|pstr| {
+                        relations.push(Overpass::create_filter(
+                            "way",
+                            &(k, v.values.clone()),
+                            &pstr,
+                        ))
+                    })
                 }),
 
                 _ => panic!("Geometry type not recognized"),
@@ -119,7 +131,7 @@ impl Overpass {
             nodes: nodes,
             ways: ways,
             relations: relations,
-            polygon_str: polygon_str,
+            polygon_strs: polygon_strs,
             url: OVERPASS_URL.to_string(),
         }
     }
@@ -128,6 +140,8 @@ impl Overpass {
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static("HotOSM"));
         let query = self.build_query();
+        println!("{}", query);
+
         let mut resp = Client::new()
             .post(&self.url)
             .headers(headers)
