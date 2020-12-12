@@ -13,6 +13,7 @@ use base64::{decode, encode};
 use itsdangerous::{default_builder, Signer};
 
 use actix::prelude::{Actor, Addr, Handler, Message, SyncArbiter, SyncContext};
+use geojson::{GeoJson, PolygonType, Value};
 
 use log::error;
 use serde_json::{to_value, Map};
@@ -131,6 +132,34 @@ async fn create_campaign(
         .set_uuid()
         .set_user(user)
         .set_status(Status::Created);
+
+    let ref geom = campaign.geom;
+    let feature_collection = match geom {
+        geojson::GeoJson::FeatureCollection(f) => f,
+        _ => {
+            return HttpResponse::BadRequest()
+                .content_type("text/plain")
+                .body("Geojson must be FeatureCollection")
+        }
+    };
+
+    let geometries = feature_collection
+        .features
+        .iter()
+        .map(|f| {
+            let ref value = f.geometry.as_ref().unwrap().value;
+
+            match value {
+                Value::Polygon(p) => true,
+                _ => false,
+            }
+        })
+        .filter(|x| x == &false)
+        .collect::<Vec<bool>>();
+
+    if geometries.len() > 0 {
+        return HttpResponse::BadRequest().body("Polygon geometry supported only");
+    }
 
     let saved = data.storage.save_campaign(campaign);
 
